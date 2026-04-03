@@ -1,0 +1,99 @@
+{% extends "auth/base_auth.html" %}
+{% block title %}Créer un compte – ENSForm{% endblock %}
+{% block subtitle %}Créer un compte administrateur{% endblock %}
+
+{% block content %}
+{% if error %}
+  <div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>{{ error }}</div>
+{% endif %}
+
+<form method="post" novalidate autocomplete="off">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"/>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold" for="email">Adresse e-mail</label>
+    <div class="input-group">
+      <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+      <input type="email" id="email" name="email" class="form-control"
+             placeholder="vous@exemple.com" required autofocus
+             value="{{ request.form.get('email', '') }}"/>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold" for="password">Mot de passe</label>
+    <div class="input-group">
+      <span class="input-group-text"><i class="bi bi-lock"></i></span>
+      <input type="password" id="password" name="password" class="form-control"
+             placeholder="12 caractères minimum" required
+             oninput="checkStrength(this.value)"/>
+      <button type="button" class="btn btn-outline-secondary password-toggle"
+              onclick="togglePwd('password', this)">
+        <i class="bi bi-eye"></i>
+      </button>
+    </div>
+    <div class="mt-1">
+      <div class="strength-bar w-0" id="strength-bar" style="width:0"></div>
+      <div class="form-text" id="strength-label"></div>
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <label class="form-label fw-semibold" for="confirm">Confirmer le mot de passe</label>
+    <div class="input-group">
+      <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+      <input type="password" id="confirm" name="confirm" class="form-control"
+             placeholder="Répétez le mot de passe" required/>
+      <button type="button" class="btn btn-outline-secondary password-toggle"
+              onclick="togglePwd('confirm', this)">
+        <i class="bi bi-eye"></i>
+      </button>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary w-100 fw-semibold">
+    <i class="bi bi-person-plus me-1"></i>Créer le compte
+  </button>
+</form>
+
+<hr class="my-3"/>
+<p class="text-center small mb-0">
+  Déjà un compte ?
+  <a href="{{ url_for('auth.auth_login') }}">Se connecter</a>
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePwd(id, btn) {
+  const inp = document.getElementById(id);
+  const showing = inp.type === 'text';
+  inp.type = showing ? 'password' : 'text';
+  btn.querySelector('i').className = showing ? 'bi bi-eye' : 'bi bi-eye-slash';
+}
+
+function checkStrength(pwd) {
+  const bar   = document.getElementById('strength-bar');
+  const label = document.getElementById('strength-label');
+  let score = 0;
+  if (pwd.length >= 12) score++;
+  if (pwd.length >= 16) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/[0-9]/.test(pwd)) score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+  const levels = [
+    { pct:  '0%', cls: '',        text: '' },
+    { pct: '25%', cls: 'bg-danger',  text: 'Très faible' },
+    { pct: '50%', cls: 'bg-warning', text: 'Faible' },
+    { pct: '75%', cls: 'bg-info',    text: 'Bon' },
+    { pct: '90%', cls: 'bg-success', text: 'Fort' },
+    { pct:'100%', cls: 'bg-success', text: 'Très fort' },
+  ];
+  const lvl = levels[Math.min(score, 5)];
+  bar.style.width      = lvl.pct;
+  bar.className        = 'strength-bar ' + lvl.cls;
+  label.textContent    = lvl.text;
+  label.style.color    = score < 2 ? '#dc3545' : score < 4 ? '#ffc107' : '#198754';
+}
+</script>
+{% endblock %}

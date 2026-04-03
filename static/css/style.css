@@ -1,0 +1,239 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   ENSForm – Feuille de style principale
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Variables ─────────────────────────────────────────────────────────────── */
+:root {
+  --sidebar-width: 240px;
+  --topbar-height: 60px;
+  --color-primary: #4f8ef7;
+  --color-accent:  #6d5cdf;
+  --color-bg:      #f0f2f5;
+  --color-sidebar: #1e2333;
+  --color-sidebar-text: #b8c0d4;
+  --color-sidebar-active: #4f8ef7;
+}
+
+/* ── Reset / base ───────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--color-bg);
+  color: #1e2333;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────────────── */
+.sidebar {
+  position: fixed;
+  top: 0; left: 0;
+  width: var(--sidebar-width);
+  height: 100vh;
+  background: var(--color-sidebar);
+  color: var(--color-sidebar-text);
+  /* Au-dessus de .sticky-top Bootstrap (1020) pour que le menu mobile recouvre tout le contenu */
+  z-index: 1046;
+  overflow-y: auto;
+  transition: transform .25s ease;
+}
+
+/* Voile sombre derrière le menu (mobile) : cliquer ferme le menu */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 1045;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.sidebar-backdrop.show {
+  display: block;
+  opacity: 1;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  padding: 1.25rem 1.25rem 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: white;
+  text-decoration: none;
+  letter-spacing: -.3px;
+}
+
+.sidebar-brand:hover { color: var(--color-primary); }
+
+.sidebar-divider {
+  border-color: rgba(255,255,255,.08);
+  margin: 0 1rem .5rem;
+}
+
+.sidebar .nav-link {
+  color: var(--color-sidebar-text);
+  padding: .55rem 1.25rem;
+  border-radius: .5rem;
+  margin: .15rem .5rem;
+  font-size: .9rem;
+  transition: background .15s, color .15s;
+}
+
+.sidebar .nav-link:hover {
+  background: rgba(255,255,255,.07);
+  color: white;
+}
+
+.sidebar .nav-link.active {
+  background: rgba(79,142,247,.2);
+  color: var(--color-primary);
+}
+
+.sidebar-footer {
+  border-top: 1px solid rgba(255,255,255,.08);
+  padding-top: .75rem;
+  margin-top: auto;
+}
+
+/* ── Main content ───────────────────────────────────────────────────────────── */
+.main-content {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top bar ────────────────────────────────────────────────────────────────── */
+.topbar {
+  height: var(--topbar-height);
+  background: white;
+  border-bottom: 1px solid #e5e8ee;
+  position: sticky;
+  top: 0;
+  /* Sous la sidebar mobile (1046) mais au-dessus du contenu scrollable */
+  z-index: 1030;
+  gap: .75rem;
+  min-width: 0;
+}
+
+/* Actions topbar : une seule ligne sur mobile, défilement horizontal si besoin */
+.topbar-actions-scroll {
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.topbar-actions-scroll .d-flex {
+  flex-wrap: nowrap;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────────── */
+.card {
+  border: 1px solid #e5e8ee;
+  border-radius: .75rem;
+}
+
+.card-header {
+  border-radius: .75rem .75rem 0 0 !important;
+  border-bottom: 1px solid #e5e8ee;
+  font-weight: 600;
+}
+
+/* ── Form cards (dashboard) ─────────────────────────────────────────────────── */
+.form-card {
+  transition: transform .15s, box-shadow .15s;
+}
+
+.form-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.1) !important;
+}
+
+/* ── Question cards (builder) ───────────────────────────────────────────────── */
+.q-card {
+  background: white;
+  border: 1px solid #e5e8ee;
+  border-radius: .75rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: .75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+}
+
+.q-card .q-card-body { flex: 1; min-width: 0; }
+
+.q-card .q-type-badge {
+  display: inline-block;
+  font-size: .7rem;
+  font-weight: 600;
+  background: #e9ecef;
+  color: #6c757d;
+  border-radius: .4rem;
+  padding: .15rem .5rem;
+  margin-bottom: .35rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.q-card .q-label {
+  font-weight: 600;
+  font-size: .95rem;
+  margin-bottom: .1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.q-card .q-desc {
+  font-size: .8rem;
+  color: #6c757d;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.btn-primary:hover, .btn-primary:focus {
+  background: #3a7ae8;
+  border-color: #3a7ae8;
+}
+
+/* ── Alerts ─────────────────────────────────────────────────────────────────── */
+.alert { border-radius: .65rem; border: none; }
+
+/* ── Empty state ────────────────────────────────────────────────────────────── */
+.empty-state { padding: 3rem 1rem; }
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 991.98px) {
+  .sidebar {
+    transform: translateX(calc(-1 * var(--sidebar-width)));
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,.25);
+  }
+  .main-content {
+    margin-left: 0;
+  }
+  /* Au-dessus du voile (1045) et de la sidebar (1046) pour que le menu ☰ reste cliquable */
+  .topbar {
+    z-index: 1047;
+  }
+}
+
+/* ── Breadcrumbs ────────────────────────────────────────────────────────────── */
+.breadcrumb { font-size: .85rem; }
+.breadcrumb-item + .breadcrumb-item::before { color: #adb5bd; }
+
+/* ── Scrollbar custom ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #adb5bd; }

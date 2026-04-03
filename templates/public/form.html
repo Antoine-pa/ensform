@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{{ form.title }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
+  <style>
+    body { background:#f0f2f5; min-height:100vh; }
+    .form-card { border-radius:1rem; box-shadow:0 4px 24px rgba(0,0,0,.10); }
+    .form-header { background:linear-gradient(135deg,#4f8ef7 0%,#6d5cdf 100%);
+                   border-radius:1rem 1rem 0 0; color:white; }
+    .q-block { border-left:4px solid #4f8ef7; border-radius:.5rem; background:white; }
+    .q-block.has-error { border-left-color:#dc3545; }
+
+    /* ── Searchable select / autocomplete ───── */
+    .ss-wrap { position:relative; }
+    .autocomplete-list {
+      position:absolute; z-index:1050; background:white;
+      border:1px solid #dee2e6; border-radius:.5rem;
+      max-height:220px; overflow-y:auto; width:100%;
+      box-shadow:0 4px 16px rgba(0,0,0,.12);
+    }
+    .autocomplete-list li {
+      padding:.45rem 1rem; cursor:pointer; list-style:none;
+      font-size:.92rem; border-bottom:1px solid #f0f0f0;
+    }
+    .autocomplete-list li:last-child { border-bottom:none; }
+    .autocomplete-list li:hover,
+    .autocomplete-list li.ac-active { background:#e9ecef; }
+
+    /* ── Type groupe ────────────────────────── */
+    .groupe-section { background:#f8f9fa; border-radius:.5rem; padding:1rem; margin-top:.5rem; }
+    .wish-row { display:flex; gap:.5rem; align-items:flex-start; margin-bottom:.75rem; }
+    .wish-row .wish-num {
+      flex-shrink:0; width:2rem; height:2rem;
+      background:#4f8ef7; color:white; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:.8rem; font-weight:700; margin-top:.25rem;
+    }
+    .wish-row .wish-body { flex:1; }
+    .exte-note { font-size:.78rem; color:#6c757d; margin-top:.2rem; }
+  </style>
+</head>
+<body class="py-4 px-2">
+
+<div class="container" style="max-width:680px">
+  <div class="form-card">
+    <div class="form-header p-4">
+      <h3 class="mb-1 fw-bold">{{ form.title }}</h3>
+      {% if form.description %}<p class="mb-0 opacity-75">{{ form.description }}</p>{% endif %}
+    </div>
+
+    <div class="p-4">
+      {% if errors.get('__duplicate') %}
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle me-2"></i>{{ errors['__duplicate'] }}
+        </div>
+      {% endif %}
+
+      <form method="post" id="public-form" novalidate>
+
+        {% for q in form.questions %}
+          <div class="q-block p-3 mb-3
+            {% if errors.get(q.id) or errors.get('g_' ~ q.id ~ '_identity') or errors.get('g_' ~ q.id ~ '_exte_name') %}has-error{% endif %}">
+            <label class="form-label fw-semibold">
+              {{ q.label }}{% if q.required %}<span class="text-danger ms-1">*</span>{% endif %}
+            </label>
+            {% if q.description %}<p class="text-muted small mb-2">{{ q.description }}</p>{% endif %}
+
+            {# ── Texte court ── #}
+            {% if q.qtype == 'text' %}
+              <input type="text" name="q_{{ q.id }}" class="form-control {% if errors.get(q.id) %}is-invalid{% endif %}"
+                     value="{{ prev.get('q_' ~ q.id, '') }}"
+                     placeholder="{{ q.config.get('placeholder', '') }}"
+                     {% if q.required %}required{% endif %}/>
+
+            {# ── Texte long ── #}
+            {% elif q.qtype == 'textarea' %}
+              <textarea name="q_{{ q.id }}" rows="4"
+                        class="form-control {% if errors.get(q.id) %}is-invalid{% endif %}"
+                        placeholder="{{ q.config.get('placeholder', '') }}"
+                        {% if q.required %}required{% endif %}>{{ prev.get('q_' ~ q.id, '') }}</textarea>
+
+            {# ── Nombre ── #}
+            {% elif q.qtype == 'number' %}
+              <input type="number" name="q_{{ q.id }}"
+                     class="form-control {% if errors.get(q.id) %}is-invalid{% endif %}"
+                     value="{{ prev.get('q_' ~ q.id, '') }}"
+                     {% if q.config.get('min') is not none %}min="{{ q.config.min }}"{% endif %}
+                     {% if q.config.get('max') is not none %}max="{{ q.config.max }}"{% endif %}
+                     {% if q.config.get('step') %}step="{{ q.config.step }}"{% endif %}
+                     {% if q.required %}required{% endif %}/>
+
+            {# ── Email ── #}
+            {% elif q.qtype == 'email' %}
+              <input type="email" name="q_{{ q.id }}"
+                     class="form-control {% if errors.get(q.id) %}is-invalid{% endif %}"
+                     value="{{ prev.get('q_' ~ q.id, '') }}"
+                     {% if q.required %}required{% endif %}/>
+
+            {# ── Date ── #}
+            {% elif q.qtype == 'date' %}
+              <input type="date" name="q_{{ q.id }}"
+                     class="form-control {% if errors.get(q.id) %}is-invalid{% endif %}"
+                     value="{{ prev.get('q_' ~ q.id, '') }}"
+                     {% if q.required %}required{% endif %}/>
+
+            {# ── Liste déroulante avec recherche ── #}
+            {% elif q.qtype == 'select' %}
+              <div class="ss-wrap"
+                   data-type="searchable-select"
+                   data-options="{{ q.options | tojson | forceescape }}"
+                   data-name="q_{{ q.id }}"
+                   data-initial="{{ prev.get('q_' ~ q.id, '') | e }}"
+                   data-placeholder="Rechercher ou choisir…"
+                   data-required="{{ 'true' if q.required else 'false' }}"
+                   data-error="{{ 'true' if errors.get(q.id) else 'false' }}">
+              </div>
+
+            {# ── Choix unique ── #}
+            {% elif q.qtype == 'radio' %}
+              {% for opt in q.options %}
+                <div class="form-check">
+                  <input class="form-check-input" type="radio"
+                         name="q_{{ q.id }}" id="q{{ q.id }}_{{ loop.index }}"
+                         value="{{ opt }}"
+                         {% if prev.get('q_' ~ q.id) == opt %}checked{% endif %}
+                         {% if q.required %}required{% endif %}/>
+                  <label class="form-check-label" for="q{{ q.id }}_{{ loop.index }}">{{ opt }}</label>
+                </div>
+              {% endfor %}
+
+            {# ── Choix multiple ── #}
+            {% elif q.qtype == 'checkbox' %}
+              {% for opt in q.options %}
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox"
+                         name="q_{{ q.id }}" id="q{{ q.id }}_{{ loop.index }}"
+                         value="{{ opt }}"
+                         {% if opt in (prev.getlist('q_' ~ q.id) or []) %}checked{% endif %}/>
+                  <label class="form-check-label" for="q{{ q.id }}_{{ loop.index }}">{{ opt }}</label>
+                </div>
+              {% endfor %}
+
+            {# ── Groupes ── #}
+            {% elif q.qtype == 'groupe' %}
+              {% set max_w = q.config.get('max_wishes', 3) | int %}
+              <div class="groupe-field"
+                   data-qid="{{ q.id }}"
+                   data-participants="{{ participants | tojson | forceescape }}"
+                   data-max-wishes="{{ max_w }}"
+                   data-allow-exte="{{ 'true' if q.config.get('allow_exte', True) else 'false' }}"
+                   data-prev-identity-type="{{ prev.get('g_' ~ q.id ~ '_identity_type', '') | e }}"
+                   data-prev-identity-name="{{ prev.get('g_' ~ q.id ~ '_identity_name', '') | e }}"
+                   data-prev-exte-name="{{ prev.get('g_' ~ q.id ~ '_exte_name', '') | e }}"
+                   data-prev-phone="{{ prev.get('g_' ~ q.id ~ '_phone', '') | e }}"
+                   data-error-identity="{{ errors.get('g_' ~ q.id ~ '_identity', '') | e }}"
+                   data-error-exte="{{ errors.get('g_' ~ q.id ~ '_exte_name', '') | e }}"
+                   data-error-phone="{{ errors.get('g_' ~ q.id ~ '_phone', '') | e }}"
+                   {%- for i in range(max_w) %}
+                   data-prev-wish{{ i }}-type="{{ prev.get('g_' ~ q.id ~ '_wish_' ~ i ~ '_type', '') | e }}"
+                   data-prev-wish{{ i }}-name="{{ prev.get('g_' ~ q.id ~ '_wish_' ~ i ~ '_name', '') | e }}"
+                   data-prev-wish{{ i }}-exte-name="{{ prev.get('g_' ~ q.id ~ '_wish_' ~ i ~ '_exte_name', '') | e }}"
+                   data-error-wish{{ i }}-exte="{{ errors.get('g_' ~ q.id ~ '_wish_' ~ i ~ '_exte', '') | e }}"
+                   {%- endfor %}>
+              </div>
+              {# Les champs sont injectés par JS #}
+            {% endif %}
+
+            {% if errors.get(q.id) %}
+              <div class="invalid-feedback d-block">{{ errors[q.id] }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+
+        <div class="d-grid mt-4">
+          <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-send me-2"></i>Envoyer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/public_form.js') }}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', initPublicForm);
+</script>
+</body>
+</html>

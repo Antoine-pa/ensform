@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Partager – {{ form.title }}{% endblock %}
+
+{% block topbar_title %}
+  <h5 class="mb-0 fw-semibold">
+    <a href="{{ url_for('admin.admin_form_builder', form_id=form.id) }}" class="text-decoration-none text-dark">{{ form.title }}</a>
+    <span class="text-muted fw-normal">/ Partage</span>
+  </h5>
+{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('admin.admin_form_builder', form_id=form.id) }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Retour
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="row mt-3 justify-content-center">
+  <div class="col-12 col-lg-8">
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-person-plus me-2"></i>Ajouter un collaborateur</h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-md-5">
+            <label class="form-label">Adresse e-mail</label>
+            <input type="email" id="share-email" class="form-control" placeholder="nom@exemple.fr">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Rôle</label>
+            <select id="share-role" class="form-select">
+              <option value="reader">Lecteur – voit les réponses</option>
+              <option value="editor">Éditeur – peut modifier le form</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3">
+            <button id="btn-share-add" class="btn btn-primary w-100">
+              <i class="bi bi-share me-1"></i>Partager
+            </button>
+          </div>
+        </div>
+        <div id="share-error" class="text-danger small mt-2" style="display:none"></div>
+        <div id="share-success" class="text-success small mt-2" style="display:none"></div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-people me-2"></i>Collaborateurs</h6>
+        <span class="badge bg-secondary" id="share-count">{{ shares|length }}</span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="shares-table">
+          <thead class="table-light">
+            <tr>
+              <th>Email</th>
+              <th>Rôle</th>
+              <th>Statut</th>
+              <th style="width:80px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if not shares %}
+              <tr id="no-shares-row">
+                <td colspan="4" class="text-center text-muted py-3">Aucun partage pour l'instant.</td>
+              </tr>
+            {% endif %}
+            {% for s in shares %}
+              <tr data-share-id="{{ s.id }}">
+                <td>{{ s.email }}</td>
+                <td>
+                  <span class="badge {% if s.role == 'editor' %}bg-primary{% else %}bg-info text-dark{% endif %}">
+                    {% if s.role == 'editor' %}Éditeur{% else %}Lecteur{% endif %}
+                  </span>
+                </td>
+                <td>
+                  {% if s.user_id %}
+                    <span class="badge bg-success">Actif</span>
+                  {% else %}
+                    <span class="badge bg-warning text-dark">En attente</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <button class="btn btn-sm btn-outline-danger btn-share-remove" data-id="{{ s.id }}" title="Retirer">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  const FORM_ID  = {{ form.id }};
+  const CSRF     = '{{ csrf_token() }}';
+  const emailIn  = document.getElementById('share-email');
+  const roleIn   = document.getElementById('share-role');
+  const btnAdd   = document.getElementById('btn-share-add');
+  const errDiv   = document.getElementById('share-error');
+  const okDiv    = document.getElementById('share-success');
+  const tbody    = document.querySelector('#shares-table tbody');
+  const countBdg = document.getElementById('share-count');
+
+  function showErr(msg) { errDiv.textContent = msg; errDiv.style.display=''; okDiv.style.display='none'; }
+  function showOk(msg)  { okDiv.textContent = msg; okDiv.style.display=''; errDiv.style.display='none'; setTimeout(()=> okDiv.style.display='none', 3000); }
+  function hideMsg()    { errDiv.style.display='none'; okDiv.style.display='none'; }
+
+  function updateCount() {
+    const n = tbody.querySelectorAll('tr[data-share-id]').length;
+    countBdg.textContent = n;
+    const noRow = document.getElementById('no-shares-row');
+    if (noRow) noRow.style.display = n > 0 ? 'none' : '';
+  }
+
+  btnAdd.addEventListener('click', async () => {
+    hideMsg();
+    const email = emailIn.value.trim().toLowerCase();
+    const role  = roleIn.value;
+    if (!email) { showErr('Email requis.'); return; }
+
+    btnAdd.disabled = true;
+    try {
+      const res = await fetch(`/api/forms/${FORM_ID}/share`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json', 'X-CSRF-Token': CSRF},
+        body: JSON.stringify({email, role})
+      });
+      const data = await res.json();
+      if (!res.ok) { showErr(data.error || 'Erreur.'); return; }
+
+      const existing = tbody.querySelector(`tr[data-share-id="${data.id}"]`);
+      if (existing) existing.remove();
+
+      const noRow = document.getElementById('no-shares-row');
+      if (noRow) noRow.remove();
+
+      const roleBadge = role === 'editor'
+        ? '<span class="badge bg-primary">Éditeur</span>'
+        : '<span class="badge bg-info text-dark">Lecteur</span>';
+      const statusBadge = data.status === 'active'
+        ? '<span class="badge bg-success">Actif</span>'
+        : '<span class="badge bg-warning text-dark">En attente</span>';
+      const tr = document.createElement('tr');
+      tr.dataset.shareId = data.id;
+      tr.innerHTML = `<td>${data.email}</td><td>${roleBadge}</td><td>${statusBadge}</td><td><button class="btn btn-sm btn-outline-danger btn-share-remove" data-id="${data.id}" title="Retirer"><i class="bi bi-x-lg"></i></button></td>`;
+      tbody.appendChild(tr);
+      emailIn.value = '';
+      showOk(`Partagé avec ${data.email} (${role === 'editor' ? 'éditeur' : 'lecteur'}).`);
+      updateCount();
+    } finally { btnAdd.disabled = false; }
+  });
+
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.btn-share-remove');
+    if (!btn) return;
+    const sid = btn.dataset.id;
+    if (!confirm('Retirer cet accès ?')) return;
+    btn.disabled = true;
+    const res = await fetch(`/api/forms/${FORM_ID}/share/${sid}`, {
+      method: 'DELETE',
+      headers: {'X-CSRF-Token': CSRF}
+    });
+    if (res.ok) {
+      const tr = tbody.querySelector(`tr[data-share-id="${sid}"]`);
+      if (tr) tr.remove();
+      updateCount();
+      if (!tbody.querySelector('tr[data-share-id]')) {
+        const noRow = document.createElement('tr');
+        noRow.id = 'no-shares-row';
+        noRow.innerHTML = '<td colspan="4" class="text-center text-muted py-3">Aucun partage pour l\'instant.</td>';
+        tbody.appendChild(noRow);
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

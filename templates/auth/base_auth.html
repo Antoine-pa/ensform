@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}ENSForm{% endblock %}</title>
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
+  <style>
+    body { background: #f0f2f5; min-height: 100vh; }
+    .auth-card {
+      max-width: 440px;
+      margin: 80px auto 40px;
+      border: none;
+      border-radius: 1rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,.10);
+    }
+    .auth-logo {
+      width: 48px; height: 48px;
+      background: #0d6efd;
+      border-radius: .75rem;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 12px;
+    }
+    .password-toggle { cursor: pointer; }
+    .strength-bar { height: 4px; border-radius: 2px; transition: width .3s, background .3s; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="card auth-card">
+    <div class="card-body p-4 p-sm-5">
+      <div class="text-center mb-4">
+        <div class="auth-logo">
+          <i class="bi bi-journal-text text-white fs-4"></i>
+        </div>
+        <h5 class="fw-bold mb-0">ENSForm</h5>
+        <p class="text-muted small mb-0">{% block subtitle %}{% endblock %}</p>
+      </div>
+
+      {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in msgs %}
+          <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} py-2 small">{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

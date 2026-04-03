@@ -1,0 +1,53 @@
+{% extends "auth/base_auth.html" %}
+{% block title %}Connexion – ENSForm{% endblock %}
+{% block subtitle %}Connexion à l'interface d'administration{% endblock %}
+
+{% block content %}
+{% if error %}
+  <div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>{{ error }}</div>
+{% endif %}
+
+<form method="post" novalidate>
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"/>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold" for="email">Adresse e-mail</label>
+    <div class="input-group">
+      <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+      <input type="email" id="email" name="email" class="form-control"
+             placeholder="vous@exemple.com" required autofocus
+             value="{{ request.form.get('email', '') }}"/>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold" for="password">Mot de passe</label>
+    <div class="input-group">
+      <span class="input-group-text"><i class="bi bi-lock"></i></span>
+      <input type="password" id="password" name="password" class="form-control"
+             placeholder="Mot de passe" required/>
+      <button type="button" class="btn btn-outline-secondary"
+              onclick="const i=document.getElementById('password');
+                       const s=i.type==='text';i.type=s?'password':'text';
+                       this.querySelector('i').className=s?'bi bi-eye':'bi bi-eye-slash'">
+        <i class="bi bi-eye"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="mb-4 form-check">
+    <input type="checkbox" id="remember" name="remember" class="form-check-input"/>
+    <label for="remember" class="form-check-label small">Se souvenir de moi (7 jours)</label>
+  </div>
+
+  <button type="submit" class="btn btn-primary w-100 fw-semibold">
+    <i class="bi bi-box-arrow-in-right me-1"></i>Se connecter
+  </button>
+</form>
+
+<hr class="my-3"/>
+<p class="text-center small mb-0">
+  Pas encore de compte ?
+  <a href="{{ url_for('auth.auth_register') }}">Créer un compte</a>
+</p>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "auth/base_auth.html" %}
+{% block title %}Vérification e-mail – ENSForm{% endblock %}
+{% block subtitle %}Vérification de votre adresse e-mail{% endblock %}
+
+{% block content %}
+<div class="alert alert-info py-2 small mb-3">
+  <i class="bi bi-envelope-check me-1"></i>
+  Un code à 6 chiffres a été envoyé à <strong>{{ email }}</strong>.
+  Vérifiez aussi vos spams.
+</div>
+
+{% if error %}
+  <div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>{{ error }}</div>
+{% endif %}
+
+<form method="post" autocomplete="off" id="verify-form">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="action" value="verify"/>
+
+  <div class="mb-4">
+    <label class="form-label fw-semibold" for="code">Code de vérification</label>
+    <input type="text" id="code" name="code"
+           class="form-control form-control-lg text-center fw-bold"
+           style="letter-spacing:10px;font-family:monospace;font-size:1.6rem"
+           maxlength="7" placeholder="______"
+           inputmode="numeric" pattern="[0-9 ]*"
+           autofocus autocomplete="one-time-code"
+           oninput="formatCode(this)"/>
+    <div class="form-text text-center">Entrez les 6 chiffres reçus par e-mail (valable 10 min).</div>
+  </div>
+
+  <button type="submit" class="btn btn-primary w-100 fw-semibold mb-2" id="verify-btn">
+    <i class="bi bi-shield-check me-1"></i>Vérifier
+  </button>
+</form>
+
+<form method="post" class="mt-1">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="action" value="resend"/>
+  <button type="submit" class="btn btn-link w-100 small text-muted">
+    <i class="bi bi-arrow-clockwise me-1"></i>Renvoyer le code
+  </button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function formatCode(input) {
+  // N'accepter que les chiffres, auto-soumettre quand 6 chiffres saisis
+  let val = input.value.replace(/\D/g, '').slice(0, 6);
+  input.value = val;
+  if (val.length === 6) {
+    document.getElementById('verify-form').submit();
+  }
+}
+</script>
+{% endblock %}

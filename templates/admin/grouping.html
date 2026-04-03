@@ -1,0 +1,812 @@
+{% extends "base.html" %}
+{% block title %}Constructeur de groupes – {{ form.title }} – ENSForm{% endblock %}
+
+{% block head %}
+<style>
+  .pool-card, .slot-card { min-height: 80px; }
+  .slot-card .card-header { cursor: default; }
+  .person-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 8px; margin: 2px 0;
+    border-radius: 6px;
+    border: 1px solid rgba(0,0,0,.15); cursor: grab;
+    font-size: .85rem; transition: box-shadow .15s;
+    user-select: none; -webkit-user-select: none;
+  }
+  .person-row:active { cursor: grabbing; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+  .person-row .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .person-row.type-exte { border: 2px dashed rgba(0,0,0,.45) !important; }
+  .person-row.type-exte .name { font-weight: 700; font-style: italic; }
+  .person-row.type-non_inscrit { border: 2px solid #dc3545 !important; }
+  .person-row.exte-attached { margin-left: 18px; }
+  .person-list { min-height: 40px; padding: 4px; }
+  .person-list .sortable-ghost { opacity: .4; }
+  .sortable-fallback { opacity: .85; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+  .cap-badge { font-size: .8rem; }
+  .cap-over { color: #dc3545 !important; font-weight: 700; }
+  .slot-header-edit { background: none; border: none; font-weight: 600;
+    font-size: .95rem; width: auto; padding: 0; }
+  .slot-header-edit:focus { outline: 1px solid #0d6efd; border-radius: 3px; }
+  .collapse-toggle { cursor: pointer; user-select: none; }
+  .collapse-toggle .bi { transition: transform .2s; }
+  .collapse-toggle.collapsed .bi { transform: rotate(-90deg); }
+  #arrows-svg, #arrows-svg * { pointer-events: none !important; }
+</style>
+{% endblock %}
+
+{% block topbar_title %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{{ url_for('admin.admin_dashboard') }}">Formulaires</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('admin.admin_form_builder', form_id=form.id) }}">{{ form.title }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('groupe.admin_groupe', form_id=form.id) }}">Groupes</a></li>
+    <li class="breadcrumb-item active">Constructeur</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block topbar_actions %}
+<div class="d-flex gap-2 flex-wrap">
+  <a href="{{ url_for('groupe.admin_groupe', form_id=form.id) }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Retour
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="mt-3" id="app">
+
+  <!-- Pas de session -->
+  <div id="no-session" style="display:none">
+    <div class="card shadow-sm mx-auto" style="max-width:520px">
+      <div class="card-body text-center p-5">
+        <i class="bi bi-grid-3x3-gap display-4 text-primary opacity-50"></i>
+        <h5 class="mt-3">Constructeur de groupes</h5>
+        <p class="text-muted">Créez une session pour commencer à répartir les participants.</p>
+        <button class="btn btn-primary" onclick="createSession()">
+          <i class="bi bi-plus-lg me-1"></i>Nouvelle session
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session active -->
+  <div id="session-ui" style="display:none">
+
+    <!-- Barre d'actions -->
+    <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
+      <span class="fw-semibold me-2" id="session-name-label"></span>
+
+      <div class="vr mx-1"></div>
+
+      <button class="btn btn-sm btn-outline-secondary" onclick="undo()" id="btn-undo" disabled title="Annuler (Ctrl+Z)">
+        <i class="bi bi-arrow-counterclockwise"></i>
+      </button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="redo()" id="btn-redo" disabled title="Rétablir (Ctrl+Shift+Z)">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+
+      <div class="vr mx-1"></div>
+
+      <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#setup-panel">
+        <i class="bi bi-grid-3x3 me-1"></i>Setup groupes
+      </button>
+      <button class="btn btn-sm btn-warning" onclick="autoAssign()" id="btn-auto">
+        <i class="bi bi-magic me-1"></i>Auto-répartir
+      </button>
+      <button class="btn btn-sm btn-success" onclick="saveState()" id="btn-save" disabled>
+        <i class="bi bi-floppy me-1"></i>Sauvegarder
+      </button>
+      <button class="btn btn-sm btn-outline-info" onclick="toggleArrows()" id="btn-arrows" title="Afficher/masquer les flèches de vœux">
+        <i class="bi bi-bezier2 me-1"></i>Flèches
+      </button>
+      <a href="#" class="btn btn-sm btn-outline-secondary" id="btn-export">
+        <i class="bi bi-download me-1"></i>Export CSV
+      </a>
+      <span class="ms-auto small text-muted" id="status-text"></span>
+    </div>
+
+    <!-- Panel setup (collapsible) -->
+    <div class="collapse mb-3" id="setup-panel">
+      <div class="card card-body shadow-sm">
+        <div class="row g-2 align-items-end">
+          <div class="col-auto">
+            <label class="form-label small mb-0">Nombre de groupes</label>
+            <input type="number" id="setup-count" class="form-control form-control-sm" value="4" min="1" max="50" style="width:80px">
+          </div>
+          <div class="col-auto">
+            <label class="form-label small mb-0">Capacité chacun</label>
+            <input type="number" id="setup-cap" class="form-control form-control-sm" value="8" min="1" max="200" style="width:80px">
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-sm btn-primary" onclick="quickSetup()">Créer</button>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-sm btn-outline-secondary" onclick="addOneSlot()">
+              <i class="bi bi-plus-lg me-1"></i>+1 groupe
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grille : pool + groupes -->
+    <div id="grid-wrapper" style="position:relative;overflow:visible">
+      <svg id="arrows-svg" style="position:absolute;top:0;left:0;pointer-events:none;z-index:5;overflow:visible;display:none">
+        <defs>
+          <marker id="ah-black" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+            <polygon points="0 0, 7 2.5, 0 5" fill="rgba(0,0,0,.6)"/>
+          </marker>
+          <marker id="ah-red" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+            <polygon points="0 0, 7 2.5, 0 5" fill="rgba(220,53,69,.7)"/>
+          </marker>
+        </defs>
+      </svg>
+      <div class="row g-3" id="grid">
+
+      <!-- Pools : Non placés + Non affectés -->
+      <div class="col-12 col-md-6 col-lg-3">
+
+        <div class="card shadow-sm pool-card mb-2">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+            <span class="collapse-toggle fw-semibold small d-flex align-items-center gap-1"
+                  data-bs-toggle="collapse" data-bs-target="#collapse-nonplaces" aria-expanded="true">
+              <i class="bi bi-chevron-down" style="font-size:.8rem"></i>
+              <i class="bi bi-people me-1"></i>Non placés
+              <span class="badge bg-primary ms-1" id="nonplaces-count">0</span>
+            </span>
+          </div>
+          <div class="collapse show" id="collapse-nonplaces">
+            <div class="card-body p-2">
+              <div class="person-list" id="pool-nonplaces" style="max-height:400px;overflow-y:auto"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm pool-card">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+            <span class="collapse-toggle fw-semibold small d-flex align-items-center gap-1"
+                  data-bs-toggle="collapse" data-bs-target="#collapse-pool" aria-expanded="true">
+              <i class="bi bi-chevron-down" style="font-size:.8rem"></i>
+              <i class="bi bi-inbox me-1"></i>Non affectés
+              <span class="badge bg-secondary ms-1" id="pool-count">0</span>
+            </span>
+          </div>
+          <div class="collapse show" id="collapse-pool">
+            <div class="card-body p-2">
+              <div class="person-list" id="pool" style="max-height:400px;overflow-y:auto"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Groupes (générés dynamiquement) -->
+      <div class="col-12 col-md-6 col-lg-9">
+        <div class="row g-3" id="slots-grid"></div>
+      </div>
+
+      </div>
+    </div>
+
+    <!-- Légende -->
+    <div class="d-flex gap-3 flex-wrap align-items-center px-3 py-2 bg-white border-top shadow-sm"
+         style="position:fixed;bottom:0;left:0;right:0;z-index:100">
+      <span class="small text-muted fw-semibold">Légende :</span>
+      <span class="small d-flex align-items-center gap-1">
+        <span style="display:inline-block;width:28px;height:16px;border:1px solid rgba(0,0,0,.2);border-radius:4px;background:#bfdbfe"></span>
+        Fond = département
+      </span>
+      <span class="small d-flex align-items-center gap-1">
+        <span style="display:inline-block;width:28px;height:16px;border:2px dashed rgba(0,0,0,.4);border-radius:4px;background:#f8f9fa"></span>
+        <b><i>Exté</i></b>
+      </span>
+      <span class="small d-flex align-items-center gap-1">
+        <span style="display:inline-block;width:28px;height:16px;border:2px solid #dc3545;border-radius:4px;background:#f8f9fa"></span>
+        Non-inscrit·e
+      </span>
+      <span class="small d-flex align-items-center gap-1">
+        <span style="display:inline-block;width:22px;height:0;border-top:2px solid rgba(0,0,0,.5)"></span>
+        <span>→</span>
+        Vœu → inscrit
+      </span>
+      <span class="small d-flex align-items-center gap-1">
+        <span style="display:inline-block;width:22px;height:0;border-top:2px solid rgba(220,53,69,.7)"></span>
+        <span style="color:#dc3545">→</span>
+        Vœu → non-inscrit
+      </span>
+      {% for dept, color in dept_colors.items() %}
+      <span class="small d-flex align-items-center gap-1">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:{{ color }};border:1px solid #aaa"></span>
+        {{ dept }}
+      </span>
+      {% endfor %}
+    </div>
+
+    <div style="height:60px"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+<script>
+const FORM_ID = {{ form.id }};
+const SESSIONS = {{ sessions | map(attribute='id') | list | tojson }};
+let SID = SESSIONS.length ? SESSIONS[0] : null;
+let STATE = null;
+let DIRTY = false;
+let SHOW_ARROWS = false;
+
+// ── Undo / Redo ──────────────────────────────────────────────────────────
+const HISTORY = [];
+let HISTORY_POS = -1;
+
+function snap() { return JSON.parse(JSON.stringify(STATE)); }
+
+function pushHistory() {
+  HISTORY.length = HISTORY_POS + 1;
+  HISTORY.push(snap());
+  HISTORY_POS = HISTORY.length - 1;
+  refreshUndoRedo();
+}
+
+function undo() {
+  if (HISTORY_POS <= 0) return;
+  HISTORY_POS--;
+  STATE = JSON.parse(JSON.stringify(HISTORY[HISTORY_POS]));
+  renderAll();
+  markDirtyQuiet();
+  refreshUndoRedo();
+}
+
+function redo() {
+  if (HISTORY_POS >= HISTORY.length - 1) return;
+  HISTORY_POS++;
+  STATE = JSON.parse(JSON.stringify(HISTORY[HISTORY_POS]));
+  renderAll();
+  markDirtyQuiet();
+  refreshUndoRedo();
+}
+
+function refreshUndoRedo() {
+  document.getElementById('btn-undo').disabled = HISTORY_POS <= 0;
+  document.getElementById('btn-redo').disabled = HISTORY_POS >= HISTORY.length - 1;
+}
+
+document.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  if ((e.ctrlKey || e.metaKey) && k === 'z' && e.shiftKey)  { e.preventDefault(); redo(); }
+  if ((e.ctrlKey || e.metaKey) && k === 'y')                { e.preventDefault(); redo(); }
+});
+
+// ── Exté-requester coupled drag ──────────────────────────────────────────
+
+function allPeopleMap() {
+  const m = {};
+  STATE.unassigned.forEach(p => m[p.name] = p);
+  STATE.slots.forEach(s => s.members.forEach(p => m[p.name] = p));
+  return m;
+}
+
+function locationOf(name) {
+  if (STATE.unassigned.some(p => p.name === name)) return null;
+  for (const s of STATE.slots) if (s.members.some(p => p.name === name)) return s.id;
+  return undefined;
+}
+
+function movePerson(person, fromLoc, toLoc) {
+  if (fromLoc === toLoc || !person) return;
+  if (fromLoc === null) {
+    STATE.unassigned = STATE.unassigned.filter(p => p.name !== person.name);
+  } else {
+    const s = STATE.slots.find(s => s.id === fromLoc);
+    if (s) s.members = s.members.filter(p => p.name !== person.name);
+  }
+  if (toLoc === null) {
+    STATE.unassigned.push(person);
+  } else {
+    const s = STATE.slots.find(s => s.id === toLoc);
+    if (s) s.members.push(person);
+  }
+}
+
+function enforceExteAttachment(draggedName) {
+  const pMap = allPeopleMap();
+  const dragged = pMap[draggedName];
+  if (!dragged) return false;
+
+  const destLoc = locationOf(draggedName);
+  if (destLoc === undefined) return false;
+
+  let changed = false;
+  const toMove = [];
+
+  if (dragged.type === 'exte' && dragged.requested_by && dragged.requested_by.length) {
+    for (const rName of dragged.requested_by) {
+      const r = pMap[rName];
+      if (!r) continue;
+      const rLoc = locationOf(rName);
+      if (rLoc !== undefined && rLoc !== destLoc) {
+        toMove.push({ person: r, from: rLoc });
+      }
+    }
+  }
+
+  const anchors = [draggedName];
+  if (dragged.type === 'exte' && dragged.requested_by) {
+    anchors.push(...dragged.requested_by);
+  }
+
+  Object.values(pMap).forEach(p => {
+    if (p.type !== 'exte' || p.name === draggedName) return;
+    if (!p.requested_by || !p.requested_by.some(r => anchors.includes(r))) return;
+    const eLoc = locationOf(p.name);
+    if (eLoc !== undefined && eLoc !== destLoc) {
+      toMove.push({ person: p, from: eLoc });
+    }
+  });
+
+  toMove.forEach(({ person, from }) => {
+    movePerson(person, from, destLoc);
+    changed = true;
+  });
+
+  return changed;
+}
+
+// ── Sortable management ──────────────────────────────────────────────────
+const SORTABLES = [];
+
+function destroySortables() {
+  SORTABLES.forEach(s => { try { s.destroy(); } catch(e) {} });
+  SORTABLES.length = 0;
+}
+
+function initSortable(el) {
+  const s = new Sortable(el, {
+    group: 'people',
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    revertOnSpill: true,
+    forceFallback: true,
+    fallbackClass: 'sortable-fallback',
+    onEnd: (evt) => {
+      const draggedName = evt.item.dataset.name;
+      syncStateFromDOM();
+      const exteMoved = enforceExteAttachment(draggedName);
+      pushHistory();
+      markDirty();
+      setTimeout(() => renderAll(), 0);
+    },
+  });
+  SORTABLES.push(s);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (SID) { loadState(); }
+  else     { document.getElementById('no-session').style.display = ''; }
+});
+
+
+async function createSession() {
+  const res = await fetch(`/api/forms/${FORM_ID}/grouping/sessions`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({}),
+  });
+  const data = await res.json();
+  SID = data.session_id;
+  loadState();
+}
+
+async function loadState() {
+  document.getElementById('no-session').style.display = 'none';
+  document.getElementById('session-ui').style.display = '';
+  const res  = await fetch(`/api/forms/${FORM_ID}/grouping/${SID}/state`);
+  STATE = await res.json();
+  document.getElementById('session-name-label').textContent = STATE.session_name;
+  document.getElementById('btn-export').href =
+    `/admin/forms/${FORM_ID}/grouping/${SID}/export.csv`;
+  HISTORY.length = 0;
+  HISTORY_POS = -1;
+  pushHistory();
+  renderAll();
+  DIRTY = false;
+  document.getElementById('btn-save').disabled = true;
+}
+
+function markDirty() {
+  DIRTY = true;
+  document.getElementById('btn-save').disabled = false;
+  document.getElementById('status-text').textContent = 'Modifications non sauvegardées';
+}
+
+function markDirtyQuiet() {
+  DIRTY = true;
+  document.getElementById('btn-save').disabled = false;
+}
+
+// ── Rendu ────────────────────────────────────────────────────────────────
+
+function personHTML(p, attached) {
+  const display = p.name.startsWith('Exté : ') ? p.name.slice(7) : p.name;
+  const bgColor = p.color && p.color !== '#ffffff' ? p.color : '#f8f9fa';
+  const extra   = attached ? ' exte-attached' : '';
+  const cls     = `person-row type-${p.type}${extra}`;
+  const badges  = [];
+  if (p.type === 'exte')        badges.push('<span class="badge bg-dark bg-opacity-10 text-dark" style="font-size:.7rem">exté</span>');
+  if (p.type === 'non_inscrit') badges.push('<span class="badge bg-danger bg-opacity-10 text-danger" style="font-size:.7rem">non inscrit</span>');
+
+  let border = '';
+  if (p.type === 'non_inscrit') border = 'border:2px solid #dc3545;';
+  else if (p.type === 'exte')   border = 'border:2px dashed rgba(0,0,0,.45);';
+
+  return `<div class="${cls}" style="background:${bgColor};${border}" data-name="${p.name.replace(/"/g,'&quot;')}">
+    <span class="name" title="${display}">${display}</span>
+    ${badges.join('')}
+    <i class="bi bi-grip-vertical text-muted ms-auto" style="font-size:.75rem"></i>
+  </div>`;
+}
+
+function sortedMembers(members) {
+  const exteByName = {};
+  members.forEach(p => {
+    if (p.type === 'exte' && p.requested_by && p.requested_by.length) {
+      exteByName[p.name] = p.requested_by;
+    }
+  });
+  const memberNames = new Set(members.map(m => m.name));
+  const attachedExtes = new Set();
+  Object.keys(exteByName).forEach(eName => {
+    if (exteByName[eName].some(r => memberNames.has(r))) attachedExtes.add(eName);
+  });
+  const emitted = new Set();
+  const result = [];
+  members.forEach(p => {
+    if (attachedExtes.has(p.name)) return;
+    result.push({ person: p, attached: false });
+    emitted.add(p.name);
+    Object.entries(exteByName).forEach(([eName, requesters]) => {
+      if (emitted.has(eName)) return;
+      if (requesters.includes(p.name)) {
+        const exte = members.find(m => m.name === eName);
+        if (exte) { result.push({ person: exte, attached: true }); emitted.add(eName); }
+      }
+    });
+  });
+  return result;
+}
+
+function renderAll() {
+  destroySortables();
+
+  const edgeNames = new Set();
+  if (STATE.edges) {
+    STATE.edges.forEach(({src, dst}) => { edgeNames.add(src); edgeNames.add(dst); });
+  }
+  const nonPlaces = STATE.unassigned.filter(p =>
+    p.type === 'exte' || edgeNames.has(p.name));
+  const nonAffectes = STATE.unassigned.filter(p =>
+    p.type !== 'exte' && !edgeNames.has(p.name));
+
+  const poolNP = document.getElementById('pool-nonplaces');
+  poolNP.innerHTML = sortedMembers(nonPlaces)
+    .map(({person, attached}) => personHTML(person, attached)).join('');
+  document.getElementById('nonplaces-count').textContent = nonPlaces.length;
+  initSortable(poolNP);
+
+  const pool = document.getElementById('pool');
+  pool.innerHTML = sortedMembers(nonAffectes)
+    .map(({person, attached}) => personHTML(person, attached)).join('');
+  document.getElementById('pool-count').textContent = nonAffectes.length;
+  initSortable(pool);
+
+  const grid = document.getElementById('slots-grid');
+  grid.innerHTML = '';
+  if (SHOW_ARROWS) {
+    grid.style.flexDirection = 'column';
+    grid.style.alignItems = 'center';
+    grid.style.gap = '0.5rem';
+  } else {
+    grid.style.flexDirection = '';
+    grid.style.alignItems = '';
+    grid.style.gap = '';
+  }
+  STATE.slots.forEach(slot => {
+    const count  = slot.members.length;
+    const capCls = count > slot.capacity ? 'cap-over' : '';
+    const collapseId = `collapse-slot-${slot.id}`;
+    const membersHTML = sortedMembers(slot.members)
+      .map(({person, attached}) => personHTML(person, attached)).join('');
+    const col = document.createElement('div');
+    col.className = SHOW_ARROWS ? 'mb-2' : 'col-12 col-sm-6 col-xl-4';
+    if (SHOW_ARROWS) col.style.cssText = 'width:380px;max-width:100%;';
+    col.innerHTML = `
+      <div class="card shadow-sm slot-card" data-slot-id="${slot.id}">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center py-2 gap-1">
+          <span class="collapse-toggle d-flex align-items-center gap-1"
+                data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="true">
+            <i class="bi bi-chevron-down" style="font-size:.8rem"></i>
+          </span>
+          <input class="slot-header-edit" value="${slot.name}"
+                 onchange="renameSlot(${slot.id}, this.value)" style="max-width:110px; flex:1"/>
+          <span class="cap-badge text-muted ${capCls}">${count}/${slot.capacity}</span>
+          <div class="d-flex gap-1 ms-auto">
+            <input type="number" class="form-control form-control-sm" value="${slot.capacity}"
+                   style="width:55px" min="1" title="Capacité"
+                   onchange="resizeSlot(${slot.id}, this.value)"/>
+            <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteSlot(${slot.id})"
+                    title="Supprimer ce groupe"><i class="bi bi-trash3"></i></button>
+          </div>
+        </div>
+        <div class="collapse show" id="${collapseId}">
+          <div class="card-body p-2">
+            <div class="person-list" id="slot-${slot.id}" style="max-height:400px;overflow-y:auto">
+              ${membersHTML}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    grid.appendChild(col);
+    initSortable(col.querySelector('.person-list'));
+  });
+
+  requestAnimationFrame(() => requestAnimationFrame(() => drawArrows()));
+}
+
+function syncStateFromDOM() {
+  const byName = {};
+  STATE.unassigned.forEach(p => byName[p.name] = p);
+  STATE.slots.forEach(s => s.members.forEach(p => byName[p.name] = p));
+
+  STATE.unassigned = [];
+  document.querySelectorAll('#pool-nonplaces .person-row').forEach(row => {
+    const p = byName[row.dataset.name];
+    if (p) STATE.unassigned.push(p);
+  });
+  document.querySelectorAll('#pool .person-row').forEach(row => {
+    const p = byName[row.dataset.name];
+    if (p) STATE.unassigned.push(p);
+  });
+  STATE.slots.forEach(slot => {
+    slot.members = [];
+    const el = document.getElementById(`slot-${slot.id}`);
+    if (!el) return;
+    el.querySelectorAll('.person-row').forEach(row => {
+      const p = byName[row.dataset.name];
+      if (p) slot.members.push(p);
+    });
+  });
+  updateCounters();
+}
+
+function updateCounters() {
+  const edgeNames = new Set();
+  if (STATE.edges) {
+    STATE.edges.forEach(({src, dst}) => { edgeNames.add(src); edgeNames.add(dst); });
+  }
+  const npCount = STATE.unassigned.filter(p =>
+    p.type === 'exte' || edgeNames.has(p.name)).length;
+  document.getElementById('nonplaces-count').textContent = npCount;
+  document.getElementById('pool-count').textContent = STATE.unassigned.length - npCount;
+  STATE.slots.forEach(slot => {
+    const card = document.querySelector(`[data-slot-id="${slot.id}"]`);
+    if (!card) return;
+    const badge = card.querySelector('.cap-badge');
+    if (badge) {
+      badge.textContent = `${slot.members.length}/${slot.capacity}`;
+      badge.classList.toggle('cap-over', slot.members.length > slot.capacity);
+    }
+  });
+}
+
+// ── Actions ──────────────────────────────────────────────────────────────
+
+async function quickSetup() {
+  const count = parseInt(document.getElementById('setup-count').value) || 4;
+  const cap   = parseInt(document.getElementById('setup-cap').value) || 8;
+  await fetch(`/api/forms/${FORM_ID}/grouping/${SID}/slots`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({count, capacity: cap}),
+  });
+  await loadState();
+}
+
+async function addOneSlot() {
+  const cap = parseInt(document.getElementById('setup-cap').value) || 8;
+  await fetch(`/api/forms/${FORM_ID}/grouping/${SID}/slots`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({count: 1, capacity: cap}),
+  });
+  await loadState();
+}
+
+async function renameSlot(slotId, name) {
+  await fetch(`/api/forms/${FORM_ID}/grouping/${SID}/slots/${slotId}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name}),
+  });
+  const s = STATE.slots.find(s => s.id === slotId);
+  if (s) s.name = name;
+}
+
+async function resizeSlot(slotId, cap) {
+  cap = Math.max(1, parseInt(cap) || 1);
+  await fetch(`/api/forms/${FORM_ID}/grouping/${SID}/slots/${slotId}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({capacity: cap}),
+  });
+  const s = STATE.slots.find(s => s.id === slotId);
+  if (s) s.capacity = cap;
+  updateCounters();
+}
+
+async function deleteSlot(slotId) {
+  if (!confirm('Supprimer ce groupe ? Les membres retourneront dans le pool.')) return;
+  const s = STATE.slots.find(s => s.id === slotId);
+  if (s) STATE.unassigned.push(...s.members);
+  await fetch(`/api/forms/${FORM_ID}/grouping/${SID}/slots/${slotId}`, {method:'DELETE'});
+  await loadState();
+}
+
+async function autoAssign() {
+  if (!STATE.slots.length) {
+    alert('Créez d\'abord des groupes via le panel "Setup groupes".');
+    return;
+  }
+  const btn = document.getElementById('btn-auto');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Calcul…';
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 60000);
+    const res = await fetch(`/api/forms/${FORM_ID}/grouping/${SID}/auto`,
+      { method: 'POST', signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || 'Erreur serveur');
+    }
+    await loadState();
+  } catch (err) {
+    if (err.name === 'AbortError') alert('Timeout : le serveur met trop de temps.');
+    else alert('Erreur réseau : ' + err.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-magic me-1"></i>Auto-répartir';
+}
+
+async function saveState() {
+  const assignments = {};
+  assignments['null'] = STATE.unassigned.map((p, i) => ({
+    name: p.name, cluster_id: p.cluster_id, order: i
+  }));
+  STATE.slots.forEach(slot => {
+    assignments[slot.id] = slot.members.map((p, i) => ({
+      name: p.name, cluster_id: p.cluster_id, order: i
+    }));
+  });
+  const res = await fetch(`/api/forms/${FORM_ID}/grouping/${SID}/save`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({assignments}),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Erreurs :\n' + (data.errors || []).join('\n'));
+    return;
+  }
+  DIRTY = false;
+  document.getElementById('btn-save').disabled = true;
+  document.getElementById('status-text').textContent = 'Sauvegardé ✓';
+  setTimeout(() => {
+    document.getElementById('status-text').textContent = '';
+  }, 3000);
+}
+
+// ── Flèches de vœux ─────────────────────────────────────────────────────
+
+function toggleArrows() {
+  SHOW_ARROWS = !SHOW_ARROWS;
+  const btn = document.getElementById('btn-arrows');
+  btn.classList.toggle('active', SHOW_ARROWS);
+  btn.classList.toggle('btn-info', SHOW_ARROWS);
+  btn.classList.toggle('btn-outline-info', !SHOW_ARROWS);
+  renderAll();
+}
+
+function drawArrows() {
+  const svg = document.getElementById('arrows-svg');
+  svg.querySelectorAll('.edge-arrow').forEach(el => el.remove());
+  if (!SHOW_ARROWS || !STATE || !STATE.edges || !STATE.edges.length) {
+    svg.style.display = 'none';
+    return;
+  }
+  svg.style.display = '';
+
+  const wrapper = document.getElementById('grid-wrapper');
+  const grid = document.getElementById('grid');
+  const gRect = wrapper.getBoundingClientRect();
+  svg.setAttribute('width',  wrapper.scrollWidth);
+  svg.setAttribute('height', wrapper.scrollHeight);
+
+  const personSlot = {};
+  const personType = {};
+  STATE.unassigned.forEach(p => { personSlot[p.name] = '__pool'; personType[p.name] = p.type; });
+  STATE.slots.forEach(s => s.members.forEach(p => { personSlot[p.name] = s.id; personType[p.name] = p.type; }));
+
+  const rowEls = {};
+  grid.querySelectorAll('.person-row[data-name]').forEach(el => {
+    rowEls[el.dataset.name] = el;
+  });
+
+  const slotCards = grid.querySelectorAll('.slot-card');
+  let cardsLeft = Infinity;
+  slotCards.forEach(c => {
+    const r = c.getBoundingClientRect();
+    if (r.left < cardsLeft) cardsLeft = r.left;
+  });
+  const leftRef = cardsLeft - gRect.left;
+
+  let interIdx = 0;
+
+  STATE.edges.forEach(({src, dst}) => {
+    const srcEl = rowEls[src];
+    const dstEl = rowEls[dst];
+    if (!srcEl || !dstEl) return;
+    if (srcEl.offsetParent === null || dstEl.offsetParent === null) return;
+
+    const sR = srcEl.getBoundingClientRect();
+    const dR = dstEl.getBoundingClientRect();
+    const same = personSlot[src] != null && personSlot[src] === personSlot[dst]
+                 && personSlot[src] !== '__pool';
+
+    const isRed = personType[dst] === 'non_inscrit';
+    const color = isRed ? 'rgba(220,53,69,.7)' : 'rgba(0,0,0,.5)';
+    const marker = isRed ? 'url(#ah-red)' : 'url(#ah-black)';
+
+    const y1 = sR.top + sR.height / 2 - gRect.top;
+    const y2 = dR.top + dR.height / 2 - gRect.top;
+    const dist = Math.abs(y2 - y1);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.classList.add('edge-arrow');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', color);
+    path.setAttribute('marker-end', marker);
+
+    if (same) {
+      const card = srcEl.closest('.slot-card') || srcEl.closest('.pool-card');
+      const cR = card ? card.getBoundingClientRect() : sR;
+      const rx = cR.right - gRect.left;
+      const cpx = rx + 18 + dist * 0.2;
+      path.setAttribute('d',
+        `M${rx},${y1} L${rx + 6},${y1} C${cpx},${y1} ${cpx},${y2} ${rx + 6},${y2} L${rx},${y2}`);
+      path.setAttribute('stroke-width', '1.5');
+    } else {
+      const srcCard = srcEl.closest('.slot-card') || srcEl.closest('.pool-card');
+      const dstCard = dstEl.closest('.slot-card') || dstEl.closest('.pool-card');
+      const sx = (srcCard ? srcCard.getBoundingClientRect().left : sR.left) - gRect.left;
+      const dx = (dstCard ? dstCard.getBoundingClientRect().left : dR.left) - gRect.left;
+      const cpx = Math.min(sx, dx) - 18 - dist * 0.2 - (interIdx % 6) * 5;
+      interIdx++;
+      path.setAttribute('d',
+        `M${sx},${y1} L${sx - 6},${y1} C${cpx},${y1} ${cpx},${y2} ${dx - 6},${y2} L${dx},${y2}`);
+      path.setAttribute('stroke-width', '1.2');
+      path.setAttribute('stroke-dasharray', '5,3');
+    }
+    svg.appendChild(path);
+  });
+}
+
+window.addEventListener('beforeunload', e => {
+  if (DIRTY) { e.preventDefault(); e.returnValue = ''; }
+});
+
+window.addEventListener('resize', () => { if (SHOW_ARROWS) drawArrows(); });
+document.addEventListener('shown.bs.collapse', () => { if (SHOW_ARROWS) drawArrows(); });
+document.addEventListener('hidden.bs.collapse', () => { if (SHOW_ARROWS) drawArrows(); });
+</script>
+{% endblock %}

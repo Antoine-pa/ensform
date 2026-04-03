@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord – ENSForm{% endblock %}
+
+{% block topbar_title %}<h5 class="mb-0 fw-semibold">Tableau de bord</h5>{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('admin.admin_form_new') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Nouveau formulaire
+  </a>
+{% endblock %}
+
+{% macro form_card(form, role=None) %}
+<div class="col-12 col-md-6 col-xl-4">
+  <div class="card form-card h-100 shadow-sm">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <h6 class="card-title fw-semibold mb-0">{{ form.title }}</h6>
+        <div class="d-flex gap-1">
+          {% if role %}
+            <span class="badge {% if role == 'editor' %}bg-primary{% else %}bg-info text-dark{% endif %}">
+              {% if role == 'editor' %}Éditeur{% else %}Lecteur{% endif %}
+            </span>
+          {% endif %}
+          {% if is_superadmin %}
+            <span class="badge bg-dark">Admin</span>
+          {% endif %}
+          <span class="badge {% if form.is_published %}bg-success{% else %}bg-secondary{% endif %}">
+            {% if form.is_published %}Publié{% else %}Brouillon{% endif %}
+          </span>
+        </div>
+      </div>
+      {% if form.has_groupe %}
+        <span class="badge bg-warning text-dark mb-2">
+          <i class="bi bi-people me-1"></i>Groupes
+        </span>
+      {% endif %}
+      {% if form.description %}
+        <p class="card-text text-muted small">
+          {{ form.description[:100] }}{% if form.description|length > 100 %}…{% endif %}
+        </p>
+      {% endif %}
+      <div class="text-muted small mt-2">
+        <i class="bi bi-file-text me-1"></i>{{ form.questions|length }} question{{ 's' if form.questions|length != 1 }}
+        &nbsp;&middot;&nbsp;
+        <i class="bi bi-person-fill me-1"></i>{{ form.response_count }} réponse{{ 's' if form.response_count != 1 }}
+      </div>
+      <div class="text-muted small">
+        <i class="bi bi-calendar3 me-1"></i>Modifié le {{ form.updated_at.strftime('%d/%m/%Y') }}
+      </div>
+    </div>
+    <div class="card-footer bg-transparent d-flex gap-2 flex-wrap">
+      {% if not role or role == 'editor' or is_superadmin %}
+        <a href="{{ url_for('admin.admin_form_builder', form_id=form.id) }}"
+           class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-pencil me-1"></i>Éditer
+        </a>
+      {% endif %}
+      <a href="{{ url_for('admin.admin_form_responses', form_id=form.id) }}"
+         class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-list-ul me-1"></i>Réponses
+      </a>
+      {% if form.has_groupe %}
+        <a href="{{ url_for('groupe.admin_groupe', form_id=form.id) }}"
+           class="btn btn-sm btn-outline-warning">
+          <i class="bi bi-people me-1"></i>Groupes
+        </a>
+      {% endif %}
+      {% if not role or is_superadmin %}
+        <a href="{{ url_for('api.admin_form_share', form_id=form.id) }}"
+           class="btn btn-sm btn-outline-info" title="Partager">
+          <i class="bi bi-share"></i>
+        </a>
+        <form method="post" action="{{ url_for('admin.admin_form_duplicate', form_id=form.id) }}" class="d-inline">
+          <button class="btn btn-sm btn-outline-secondary" type="submit" title="Dupliquer">
+            <i class="bi bi-copy"></i>
+          </button>
+        </form>
+        <form method="post" action="{{ url_for('admin.admin_form_delete', form_id=form.id) }}" class="d-inline"
+              onsubmit="return confirm('Supprimer « {{ form.title }} » et toutes ses réponses ?')">
+          <button class="btn btn-sm btn-outline-danger" type="submit" title="Supprimer">
+            <i class="bi bi-trash3"></i>
+          </button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="mt-3">
+  {% if not forms and not shared_forms %}
+    <div class="empty-state text-center py-5">
+      <i class="bi bi-ui-checks display-1 text-muted"></i>
+      <h4 class="mt-3 text-muted">Aucun formulaire pour l'instant</h4>
+      <p class="text-muted">Créez votre premier formulaire pour commencer à collecter des réponses.</p>
+      <a href="{{ url_for('admin.admin_form_new') }}" class="btn btn-primary mt-2">
+        <i class="bi bi-plus-lg me-1"></i>Créer un formulaire
+      </a>
+    </div>
+  {% else %}
+    {% if is_superadmin %}
+      <h6 class="text-muted mb-3"><i class="bi bi-shield-lock me-1"></i>Tous les formulaires (super-admin)</h6>
+    {% elif forms %}
+      <h6 class="text-muted mb-3">Mes formulaires</h6>
+    {% endif %}
+    {% if forms %}
+      <div class="row g-3">
+        {% for form in forms %}
+          {{ form_card(form) }}
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if shared_forms %}
+      <h6 class="text-muted mb-3 mt-4"><i class="bi bi-share me-1"></i>Partagés avec moi</h6>
+      <div class="row g-3">
+        {% for form in shared_forms %}
+          {{ form_card(form, role=form._share_role) }}
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

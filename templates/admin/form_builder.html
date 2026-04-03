@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}Éditeur – {{ form.title }} – ENSForm{% endblock %}
+
+{% block head %}
+<style>
+  .q-card { cursor: default; transition: box-shadow .15s; }
+  .q-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.12) !important; }
+  .drag-handle { cursor: grab; color: #adb5bd; }
+  .drag-handle:active { cursor: grabbing; }
+  .sortable-ghost { opacity: .4; background: #e9ecef !important; }
+  #questions-empty { display:none; }
+  .type-btn { transition: all .15s; }
+  .type-btn:hover { transform: translateY(-1px); }
+</style>
+{% endblock %}
+
+{% block topbar_title %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.admin_dashboard') }}">Formulaires</a></li>
+      <li class="breadcrumb-item active">{{ form.title }}</li>
+    </ol>
+  </nav>
+{% endblock %}
+
+{% block topbar_actions %}
+  <div class="d-flex gap-2 align-items-center flex-nowrap">
+    {% if form.is_published %}
+      <a href="{{ public_url }}" target="_blank" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Voir
+      </a>
+    {% endif %}
+    <form method="post" action="{{ url_for('admin.admin_form_publish', form_id=form.id) }}" class="d-inline">
+      <button type="submit" class="btn btn-sm {% if form.is_published %}btn-warning{% else %}btn-success{% endif %}">
+        <i class="bi bi-{% if form.is_published %}eye-slash{% else %}eye{% endif %} me-1"></i>
+        {% if form.is_published %}Dépublier{% else %}Publier{% endif %}
+      </button>
+    </form>
+    <a href="{{ url_for('api.admin_form_share', form_id=form.id) }}" class="btn btn-sm btn-outline-info" title="Partager">
+      <i class="bi bi-share"></i>
+    </a>
+    <a href="{{ url_for('admin.admin_form_edit', form_id=form.id) }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-gear me-1"></i>Paramètres
+    </a>
+  </div>
+{% endblock %}
+
+{% block content %}
+<div class="row mt-3 g-4">
+
+  <!-- ── Liste des questions ── -->
+  <div class="col-12 col-lg-7">
+    <div class="card shadow-sm mb-3 border-start border-primary border-4">
+      <div class="card-body py-3 px-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="mb-1 fw-bold">{{ form.title }}</h5>
+            {% if form.description %}<p class="text-muted mb-0 small">{{ form.description }}</p>{% endif %}
+          </div>
+          <div class="d-flex gap-2">
+            {% if form.has_groupe %}
+              <a href="{{ url_for('groupe.admin_groupe', form_id=form.id) }}" class="btn btn-sm btn-warning">
+                <i class="bi bi-people me-1"></i>Groupes
+              </a>
+              <a href="{{ url_for('grouping.grouping_page', form_id=form.id) }}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-grid-3x3-gap me-1"></i>Constructeur
+              </a>
+            {% endif %}
+            <a href="{{ url_for('admin.admin_form_responses', form_id=form.id) }}"
+               class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-list-ul me-1"></i>
+              {{ form.response_count }} réponse{{ 's' if form.response_count != 1 }}
+            </a>
+          </div>
+        </div>
+        {% if form.is_published %}
+          <div class="mt-2 d-flex align-items-center gap-2">
+            <span class="badge bg-success">Publié</span>
+            <code class="small text-muted">{{ public_url }}</code>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-1"
+                    onclick="navigator.clipboard.writeText('{{ public_url }}').then(()=>this.innerHTML='<i class=\'bi bi-check\'></i>')">
+              <i class="bi bi-clipboard"></i>
+            </button>
+          </div>
+        {% else %}
+          <span class="badge bg-secondary mt-2">Brouillon</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div id="questions-list"></div>
+    <div id="questions-empty" class="text-center py-5 text-muted">
+      <i class="bi bi-question-circle display-4"></i>
+      <p class="mt-2">Aucune question. Ajoutez-en une ci-dessous.</p>
+    </div>
+  </div>
+
+  <!-- ── Panneau ajout ── -->
+  <div class="col-12 col-lg-5">
+    <div class="card shadow-sm sticky-top" style="top:1rem;">
+      <div class="card-header fw-semibold bg-light">
+        <i class="bi bi-plus-circle me-2 text-primary"></i>Ajouter une question
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          {% for qtype, label in qtypes %}
+            <div class="col-6">
+              <button class="btn btn-outline-secondary btn-sm w-100 type-btn text-start"
+                      onclick="addQuestion('{{ qtype }}')">
+                <i class="bi bi-{{ qtype_icon(qtype) }} me-2 text-primary"></i>{{ label }}
+              </button>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Modal édition ── -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Modifier la question</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="modal-qid"/>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Type de champ</label>
+          <select id="modal-qtype" class="form-select" onchange="onQtypeChange()">
+            {% for qtype, label in qtypes %}
+              <option value="{{ qtype }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="modal-label">Libellé <span class="text-danger">*</span></label>
+          <input type="text" id="modal-label" class="form-control" placeholder="Votre question…"/>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="modal-desc">Description / aide (optionnel)</label>
+          <input type="text" id="modal-desc" class="form-control" placeholder="Texte d'aide affiché sous la question"/>
+        </div>
+
+        <div class="mb-3 form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="modal-required"/>
+          <label class="form-check-label" for="modal-required">Champ obligatoire</label>
+        </div>
+
+        <!-- Options (select/radio/checkbox) -->
+        <div id="options-section" class="mb-3" style="display:none">
+          <label class="form-label fw-semibold">Options</label>
+          <div id="options-list" class="mb-2"></div>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOptionField()">
+            <i class="bi bi-plus me-1"></i>Ajouter une option
+          </button>
+        </div>
+
+        <!-- Config nombre -->
+        <div id="config-number-section" style="display:none">
+          <div class="row g-3 mb-3">
+            <div class="col-4">
+              <label class="form-label fw-semibold" for="cfg-min">Min</label>
+              <input type="number" id="cfg-min" class="form-control" placeholder="—"/>
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-semibold" for="cfg-max">Max</label>
+              <input type="number" id="cfg-max" class="form-control" placeholder="—"/>
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-semibold" for="cfg-step">Pas</label>
+              <input type="number" id="cfg-step" class="form-control" placeholder="1"/>
+            </div>
+          </div>
+        </div>
+
+        <!-- Config texte/textarea -->
+        <div id="config-text-section" style="display:none">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="cfg-placeholder">Placeholder</label>
+            <input type="text" id="cfg-placeholder" class="form-control"/>
+          </div>
+        </div>
+
+        <!-- Config groupe -->
+        <div id="groupe-section" style="display:none">
+          <div class="alert alert-warning mb-3 py-2 px-3">
+            <i class="bi bi-people me-2"></i>
+            <strong>Question Groupes</strong> — Ce champ permet à chaque participant d'indiquer
+            son identité et ses souhaits de groupes.
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="cfg-max-wishes">
+              Nombre maximum de souhaits (N)
+            </label>
+            <input type="number" id="cfg-max-wishes" class="form-control"
+                   min="1" max="20" value="3" style="max-width:120px"/>
+            <div class="form-text">
+              Chaque participant pourra exprimer jusqu'à N souhaits de personnes avec qui être groupé.
+            </div>
+          </div>
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="cfg-allow-exte" checked/>
+              <label class="form-check-label fw-semibold" for="cfg-allow-exte">
+                Autoriser les personnes extérieures (Exté)
+              </label>
+            </div>
+            <div class="form-text">
+              Si désactivé, l'option « Exté » disparaît du formulaire public (identité et souhaits).
+            </div>
+          </div>
+          <div id="groupe-participants-link" class="alert alert-info py-2 px-3" style="display:none">
+            <i class="bi bi-info-circle me-1"></i>
+            Gérez la liste des participants depuis la page
+            <a id="groupe-admin-link" href="#" class="fw-semibold">Groupes</a>.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-primary" onclick="saveQuestion()">
+          <i class="bi bi-floppy me-1"></i>Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='js/form_builder.js') }}"></script>
+<script>
+  const FORM_ID   = {{ form.id }};
+  const QTYPES    = {{ qtypes | tojson }};
+  const INIT_DATA = {{ questions_json | safe }};
+  const GROUPE_ADMIN_URL = "{{ url_for('groupe.admin_groupe', form_id=form.id) }}";
+  const QTYPE_ICONS = {
+    text: 'input-cursor-text', textarea: 'text-left', number: 'hash',
+    email: 'envelope', date: 'calendar3', select: 'search',
+    radio: 'record-circle', checkbox: 'check2-square', groupe: 'people',
+  };
+  document.addEventListener('DOMContentLoaded', () => initBuilder(FORM_ID, INIT_DATA));
+</script>
+{% endblock %}

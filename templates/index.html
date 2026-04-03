@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ENSForm — Créez et partagez vos formulaires</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
+  <style>
+    :root {
+      --brand: #2563eb;
+      --brand-dark: #1d4ed8;
+    }
+    * { box-sizing: border-box; }
+
+    body {
+      background: #f8fafc;
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Barre de nav ── */
+    .topbar {
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .topbar-brand {
+      font-weight: 700;
+      font-size: 1.15rem;
+      color: var(--brand);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+    }
+    .topbar-brand .logo-box {
+      width: 32px; height: 32px;
+      background: var(--brand);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+      font-size: .9rem;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 1.5rem 3rem;
+    }
+    .hero-inner {
+      max-width: 560px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      background: #eff6ff;
+      color: var(--brand);
+      font-size: .78rem;
+      font-weight: 600;
+      padding: .3rem .75rem;
+      border-radius: 99px;
+      margin-bottom: 1.5rem;
+      border: 1px solid #bfdbfe;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 2.75rem);
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.15;
+      margin-bottom: .9rem;
+    }
+    .hero h1 span { color: var(--brand); }
+    .hero p {
+      color: #64748b;
+      font-size: 1.05rem;
+      line-height: 1.65;
+      margin-bottom: 2rem;
+    }
+
+    .btn-primary-hero {
+      background: var(--brand);
+      color: #fff;
+      border: none;
+      padding: .75rem 1.75rem;
+      border-radius: .6rem;
+      font-weight: 600;
+      font-size: 1rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      transition: background .15s, transform .1s;
+    }
+    .btn-primary-hero:hover {
+      background: var(--brand-dark);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .btn-outline-hero {
+      background: transparent;
+      color: var(--brand);
+      border: 1.5px solid var(--brand);
+      padding: .73rem 1.75rem;
+      border-radius: .6rem;
+      font-weight: 600;
+      font-size: 1rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      transition: background .15s, transform .1s;
+    }
+    .btn-outline-hero:hover {
+      background: #eff6ff;
+      color: var(--brand-dark);
+      transform: translateY(-1px);
+    }
+
+    /* ── Features ── */
+    .features {
+      display: flex;
+      justify-content: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      margin-top: 2.75rem;
+      padding-top: 2.5rem;
+      border-top: 1px solid #e2e8f0;
+    }
+    .feature-pill {
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      color: #475569;
+      font-size: .875rem;
+    }
+    .feature-pill i { color: var(--brand); font-size: .95rem; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 1.25rem;
+      color: #94a3b8;
+      font-size: .8rem;
+      border-top: 1px solid #e2e8f0;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<header class="topbar">
+  <a class="topbar-brand" href="/">
+    <span class="logo-box"><i class="bi bi-journal-text"></i></span>
+    ENSForm
+  </a>
+  <div class="d-flex gap-2">
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('admin.admin_dashboard') }}" class="btn-primary-hero" style="padding:.5rem 1.1rem;font-size:.9rem;">
+        <i class="bi bi-grid-1x2"></i> Tableau de bord
+      </a>
+    {% else %}
+      <a href="{{ url_for('auth.auth_login') }}" class="btn-outline-hero" style="padding:.5rem 1.1rem;font-size:.9rem;">
+        Se connecter
+      </a>
+      <a href="{{ url_for('auth.auth_register') }}" class="btn-primary-hero" style="padding:.5rem 1.1rem;font-size:.9rem;">
+        Créer un compte
+      </a>
+    {% endif %}
+  </div>
+</header>
+
+<!-- Hero -->
+<main class="hero">
+  <div class="hero-inner">
+
+    <div class="hero-badge">
+      <i class="bi bi-stars"></i> Outil interne ENS
+    </div>
+
+    <h1>Créez vos formulaires,<br><span>collectez les réponses</span></h1>
+
+    <p>
+      Construisez des formulaires personnalisés en quelques minutes,
+      partagez-les par lien et analysez les réponses — tout compris,
+      sans dépendance externe.
+    </p>
+
+    <div class="d-flex justify-content-center gap-3 flex-wrap">
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('admin.admin_dashboard') }}" class="btn-primary-hero">
+          <i class="bi bi-grid-1x2"></i> Accéder à mes formulaires
+        </a>
+      {% else %}
+        <a href="{{ url_for('auth.auth_login') }}" class="btn-primary-hero">
+          <i class="bi bi-box-arrow-in-right"></i> Se connecter
+        </a>
+        <a href="{{ url_for('auth.auth_register') }}" class="btn-outline-hero">
+          <i class="bi bi-person-plus"></i> Créer un compte
+        </a>
+      {% endif %}
+    </div>
+
+    <!-- Mini features -->
+    <div class="features">
+      <span class="feature-pill"><i class="bi bi-check2-circle"></i> Éditeur visuel</span>
+      <span class="feature-pill"><i class="bi bi-link-45deg"></i> Lien public partageable</span>
+      <span class="feature-pill"><i class="bi bi-download"></i> Export CSV</span>
+      <span class="feature-pill"><i class="bi bi-diagram-3"></i> Graphes de groupes</span>
+      <span class="feature-pill"><i class="bi bi-shield-lock"></i> Accès sécurisé</span>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  ENSForm &mdash; hébergé à l'ENS Rennes &middot; <a href="{{ url_for('auth.auth_login') }}" style="color:inherit">Connexion admin</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

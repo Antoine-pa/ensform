@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+{% block title %}Groupes – {{ form.title }} – ENSForm{% endblock %}
+
+{% block head %}
+<style>
+  #graph-container {
+    width: 100%;
+    height: 560px;
+    border-radius: .5rem;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #dee2e6;
+  }
+  #graph-container svg { width: 100%; height: 100%; }
+  .link { fill: none; stroke-opacity: .85; }
+</style>
+{% endblock %}
+
+{% block topbar_title %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.admin_dashboard') }}">Formulaires</a></li>
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.admin_form_builder', form_id=form.id) }}">{{ form.title }}</a></li>
+      <li class="breadcrumb-item active">Groupes</li>
+    </ol>
+  </nav>
+{% endblock %}
+
+{% block topbar_actions %}
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('grouping.grouping_page', form_id=form.id) }}" class="btn btn-sm btn-primary">
+      <i class="bi bi-grid-3x3-gap me-1"></i>Constructeur de groupes
+    </a>
+    <a href="{{ url_for('groupe.admin_groupe_export_dot', form_id=form.id) }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-filetype-txt me-1"></i>Export .dot
+    </a>
+    <a href="{{ url_for('groupe.admin_groupe_export_png', form_id=form.id) }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-image me-1"></i>Export PNG
+    </a>
+    <a href="{{ url_for('admin.admin_form_builder', form_id=form.id) }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Éditeur
+    </a>
+  </div>
+{% endblock %}
+
+{% block content %}
+
+{% if not groupe_q %}
+  <div class="alert alert-warning mt-3">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    Ce formulaire n'a pas encore de question de type <strong>Groupes</strong>.
+    <a href="{{ url_for('admin.admin_form_builder', form_id=form.id) }}" class="ms-1">
+      Ajoutez-en une dans l'éditeur.
+    </a>
+  </div>
+{% endif %}
+
+<div class="row g-4 mt-1">
+
+  <!-- ── Colonne gauche : participants + départements ── -->
+  <div class="col-12 col-lg-4">
+
+    <!-- Participants -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold bg-light d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-people me-2 text-warning"></i>Participants ({{ participants|length }})</span>
+      </div>
+      <div class="card-body p-3">
+
+        <!-- Ajout individuel -->
+        <div class="row g-1 mb-2">
+          <div class="col-7">
+            <input type="text" id="new-participant-name" class="form-control form-control-sm"
+                   placeholder="Prénom Nom"
+                   onkeydown="if(event.key==='Enter'){addParticipant();event.preventDefault()}"/>
+          </div>
+          <div class="col-4">
+            <input type="text" id="new-participant-dept" class="form-control form-control-sm"
+                   placeholder="Département"
+                   onkeydown="if(event.key==='Enter'){addParticipant();event.preventDefault()}"/>
+          </div>
+          <div class="col-1 d-flex">
+            <button class="btn btn-sm btn-primary flex-fill" onclick="addParticipant()">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+        </div>
+        <p class="text-muted small mb-2">Format : <strong>Prénom Nom</strong></p>
+
+        <!-- Import en masse -->
+        <details class="mb-2">
+          <summary class="text-muted small" style="cursor:pointer">
+            <i class="bi bi-card-list me-1"></i>Import texte (noms seuls, sans département)
+          </summary>
+          <p class="text-muted small mb-1 mt-1">Un <strong>Prénom Nom</strong> par ligne.</p>
+          <textarea id="bulk-import-area" class="form-control form-control-sm" rows="4"
+                    placeholder="Alice Martin&#10;Bob Dupont&#10;Charlie Durand"></textarea>
+          <button class="btn btn-sm btn-outline-primary mt-1 w-100" onclick="bulkImport()">
+            Importer
+          </button>
+        </details>
+
+        <!-- Import CSV -->
+        <details class="mb-3">
+          <summary class="text-muted small" style="cursor:pointer">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Import CSV (avec département)
+          </summary>
+          <div class="mt-1">
+            <p class="text-muted small mb-1">
+              Fichier <code>.csv</code> séparé par <code>;</code> avec les colonnes :<br>
+              <strong>Prénom ; NOM ; Département</strong><br>
+              (ligne d'en-tête facultative)
+            </p>
+            <input type="file" id="file-import" class="form-control form-control-sm"
+                   accept=".csv,text/csv,text/plain"/>
+            <button class="btn btn-sm btn-outline-primary mt-1 w-100" onclick="fileImport()">
+              Importer le fichier
+            </button>
+          </div>
+        </details>
+
+        <!-- Liste -->
+        <div style="max-height:340px; overflow-y:auto;">
+          <ul class="list-group list-group-flush" id="participants-list">
+            {% for p in participants %}
+              <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1"
+                  id="p-{{ p.id }}">
+                <span class="small">
+                  {{ p.name }}
+                  {% if p.department %}
+                    <span class="badge bg-light text-secondary border ms-1">{{ p.department }}</span>
+                  {% endif %}
+                </span>
+                <button class="btn btn-sm btn-link text-danger py-0 px-1"
+                        onclick="deleteParticipant({{ p.id }})">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% if not participants %}
+          <p class="text-muted small text-center mt-3" id="participants-empty">
+            Aucun participant pour l'instant.
+          </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Départements & couleurs -->
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold bg-light">
+        <i class="bi bi-palette me-2 text-info"></i>Couleurs par département
+      </div>
+      <div class="card-body p-3">
+        <p class="text-muted small mb-2">
+          Cliquez sur une couleur pour la modifier. Les nœuds seront remplis
+          avec la couleur du département.
+        </p>
+
+        <!-- Palette pastel rapide -->
+        <div class="d-flex gap-1 flex-wrap mb-3" id="palette-swatches">
+          {% set pastels = [
+            ('#ffffff','Blanc'),('#fef08a','Jaune'),('#fed7aa','Orange'),
+            ('#fecaca','Rouge'),('#fbcfe8','Rose'),('#bfdbfe','Bleu'),
+            ('#bbf7d0','Vert'),('#e9d5ff','Violet'),('#d1d5db','Gris')
+          ] %}
+          {% for hex, label in pastels %}
+            <span class="swatch" data-color="{{ hex }}" title="{{ label }}"
+                  style="display:inline-block;width:22px;height:22px;border-radius:4px;
+                         background:{{ hex }};border:1px solid #aaa;cursor:pointer;"
+                  onclick="applySwatch('{{ hex }}')"></span>
+          {% endfor %}
+        </div>
+
+        <!-- Liste départements -->
+        <div id="dept-list">
+          {% for dept in all_depts %}
+            <div class="d-flex align-items-center gap-2 mb-2" data-dept="{{ dept }}">
+              <input type="color" class="dept-color-picker form-control form-control-sm p-0 border-0"
+                     style="width:36px;height:30px;cursor:pointer"
+                     value="{{ dept_colors.get(dept, '#ffffff') }}"
+                     data-dept="{{ dept }}"
+                     onchange="markDirty()"/>
+              <span class="small fw-semibold flex-fill">{{ dept }}</span>
+            </div>
+          {% else %}
+            <p class="text-muted small" id="dept-empty">
+              Aucun département — importez un CSV avec la colonne Département.
+            </p>
+          {% endfor %}
+        </div>
+
+        <button class="btn btn-sm btn-primary w-100 mt-2" id="save-colors-btn"
+                onclick="saveDeptColors()" disabled>
+          <i class="bi bi-floppy me-1"></i>Enregistrer les couleurs
+        </button>
+
+        <!-- Indique quelle couleur est ciblée -->
+        <p class="text-muted small mt-1 mb-0" id="swatch-hint" style="display:none">
+          Cliquez d'abord sur un color-picker de département, puis sur une pastille.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Graphe ── -->
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold bg-light d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-diagram-3 me-2 text-primary"></i>Graphe des préférences</span>
+        <button class="btn btn-sm btn-outline-primary" onclick="loadGraph()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Actualiser
+        </button>
+      </div>
+      <div class="card-body p-0">
+        <div id="graph-container">
+          <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+            <div class="text-center p-4">
+              <i class="bi bi-diagram-3 display-4 opacity-50"></i>
+              <p class="mt-2">Cliquez sur « Actualiser » pour générer le graphe.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Légende -->
+    <div class="d-flex gap-3 mt-2 px-1 flex-wrap">
+      <span class="small text-muted d-flex align-items-center gap-1">
+        <svg width="32" height="16"><rect x="1" y="2" width="30" height="12" rx="6"
+          fill="#bfdbfe" stroke="black" stroke-width="2"/></svg>
+        Inscrit·e (fill = département)
+      </span>
+      <span class="small text-muted d-flex align-items-center gap-1">
+        <svg width="32" height="16"><rect x="1" y="2" width="30" height="12" rx="6"
+          fill="white" stroke="#dc3545" stroke-width="2"/></svg>
+        Non inscrit·e (contour rouge)
+      </span>
+      <span class="small text-muted d-flex align-items-center gap-1">
+        <svg width="32" height="16"><rect x="1" y="2" width="30" height="12" rx="6"
+          fill="white" stroke="black" stroke-width="2" stroke-dasharray="4,2"/></svg>
+        Exté (tirets, gras)
+      </span>
+      <span class="small text-muted d-flex align-items-center gap-1">
+        <svg width="32" height="16">
+          <defs><marker id="lg-arr-r" viewBox="0 -3 6 6" refX="6" refY="0" markerWidth="4" markerHeight="4" orient="auto">
+            <path d="M0,-3L6,0L0,3" fill="#dc3545"/>
+          </marker></defs>
+          <line x1="0" y1="8" x2="26" y2="8" stroke="#dc3545" stroke-width="2" marker-end="url(#lg-arr-r)"/>
+        </svg>
+        Flèche → non-inscrit·e
+      </span>
+    </div>
+
+    <!-- Stats -->
+    <div class="card shadow-sm mt-3" id="graph-stats" style="display:none">
+      <div class="card-body p-3">
+        <h6 class="fw-semibold mb-2">
+          <i class="bi bi-bar-chart me-1 text-primary"></i>Classement par souhaits reçus
+        </h6>
+        <ol class="mb-0 ps-3" id="stats-list"></ol>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script>
+  const FORM_ID = {{ form.id }};
+
+  // ── Participants CRUD ──────────────────────────────────────────────────────
+
+  async function addParticipant() {
+    const nameEl = document.getElementById('new-participant-name');
+    const deptEl = document.getElementById('new-participant-dept');
+    const name   = nameEl.value.trim();
+    const dept   = deptEl.value.trim();
+    if (!name) return;
+    const res  = await fetch(`/api/forms/${FORM_ID}/groupe/participants`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, department: dept || null}),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Erreur'); return; }
+    nameEl.value = '';
+    appendParticipant(data.id, data.name, data.department);
+    document.getElementById('participants-empty')?.remove();
+    if (dept) maybeAddDeptRow(dept);
+  }
+
+  async function deleteParticipant(pid) {
+    if (!confirm('Supprimer ce participant ?')) return;
+    await fetch(`/api/forms/${FORM_ID}/groupe/participants/${pid}`, {method: 'DELETE'});
+    document.getElementById(`p-${pid}`)?.remove();
+  }
+
+  async function bulkImport() {
+    const names = document.getElementById('bulk-import-area').value;
+    const res   = await fetch(`/api/forms/${FORM_ID}/groupe/participants/import`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({names}),
+    });
+    const data = await res.json();
+    alert(`Importés : ${data.added} · Doublons ignorés : ${data.skipped}`);
+    location.reload();
+  }
+
+  async function fileImport() {
+    const file = document.getElementById('file-import').files[0];
+    if (!file) { alert('Sélectionnez un fichier CSV.'); return; }
+    const fd = new FormData();
+    fd.append('file', file);
+    const res  = await fetch(`/api/forms/${FORM_ID}/groupe/participants/upload`, {
+      method: 'POST', body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Erreur'); return; }
+    let msg = `Importés : ${data.added} · Doublons ignorés : ${data.skipped}`;
+    if (data.errors?.length) msg += '\n\nAvertissements :\n' + data.errors.join('\n');
+    alert(msg);
+    location.reload();
+  }
+
+  function appendParticipant(id, name, dept) {
+    const li = document.createElement('li');
+    li.id = `p-${id}`;
+    li.className = 'list-group-item d-flex justify-content-between align-items-center px-0 py-1';
+    const deptBadge = dept
+      ? `<span class="badge bg-light text-secondary border ms-1">${dept}</span>`
+      : '';
+    li.innerHTML = `<span class="small">${name}${deptBadge}</span>
+      <button class="btn btn-sm btn-link text-danger py-0 px-1"
+              onclick="deleteParticipant(${id})">
+        <i class="bi bi-x-lg"></i>
+      </button>`;
+    document.getElementById('participants-list').appendChild(li);
+  }
+
+  // ── Gestion couleurs par département ──────────────────────────────────────
+
+  let _dirty = false;
+  function markDirty() {
+    _dirty = true;
+    document.getElementById('save-colors-btn').disabled = false;
+  }
+
+  let _activePicker = null;
+
+  document.querySelectorAll('.dept-color-picker').forEach(el => {
+    el.addEventListener('focus', () => { _activePicker = el; });
+  });
+
+  function applySwatch(hex) {
+    if (!_activePicker) {
+      document.getElementById('swatch-hint').style.display = '';
+      return;
+    }
+    document.getElementById('swatch-hint').style.display = 'none';
+    _activePicker.value = hex;
+    markDirty();
+  }
+
+  function maybeAddDeptRow(dept) {
+    if (document.querySelector(`[data-dept="${CSS.escape(dept)}"]`)) return;
+    document.getElementById('dept-empty')?.remove();
+    const div = document.createElement('div');
+    div.className = 'd-flex align-items-center gap-2 mb-2';
+    div.dataset.dept = dept;
+    div.innerHTML = `
+      <input type="color" class="dept-color-picker form-control form-control-sm p-0 border-0"
+             style="width:36px;height:30px;cursor:pointer" value="#ffffff"
+             data-dept="${dept}" onchange="markDirty()"/>
+      <span class="small fw-semibold flex-fill">${dept}</span>`;
+    div.querySelector('.dept-color-picker').addEventListener('focus', e => { _activePicker = e.target; });
+    document.getElementById('dept-list').appendChild(div);
+  }
+
+  async function saveDeptColors() {
+    const pickers = document.querySelectorAll('.dept-color-picker');
+    const payload = {};
+    pickers.forEach(p => { payload[p.dataset.dept] = p.value; });
+    const res = await fetch(`/api/forms/${FORM_ID}/groupe/departments`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      _dirty = false;
+      document.getElementById('save-colors-btn').disabled = true;
+      // Feedback visuel
+      const btn = document.getElementById('save-colors-btn');
+      btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Enregistré';
+      setTimeout(() => { btn.innerHTML = '<i class="bi bi-floppy me-1"></i>Enregistrer les couleurs'; }, 1500);
+    } else {
+      alert('Erreur lors de la sauvegarde.');
+    }
+  }
+
+  // ── Graphe D3 ─────────────────────────────────────────────────────────────
+
+  async function loadGraph() {
+    const res  = await fetch(`/admin/forms/${FORM_ID}/groupe/graph-data`);
+    const data = await res.json();
+    renderGraph(data);
+    renderStats(data.nodes);
+  }
+
+  // ── Constantes de rendu ──────────────────────────────────────────────────
+  const FONT_SIZE  = 12;     // px
+  const NODE_PX    = 14;     // padding horizontal (chaque côté)
+  const NODE_PY    = 9;      // padding vertical   (chaque côté)
+  const NODE_H     = FONT_SIZE + 2 * NODE_PY;   // hauteur fixe = 30px
+  const CHAR_W     = 6.8;    // largeur approx d'un caractère à 12px
+  const MIN_W      = 64;
+
+  function nodeWidth(d) {
+    return Math.max(MIN_W, d.display_name.length * CHAR_W + 2 * NODE_PX);
+  }
+  function nodeHW(d) { return nodeWidth(d) / 2; }   // demi-largeur
+  const   nodeHH = NODE_H / 2;                       // demi-hauteur (fixe)
+
+  /** Point sur le bord du pill (ellipse approx.) de (tx,ty) vers (sx,sy) */
+  function pillEdge(tx, ty, sx, sy, hw, hh) {
+    const dx = sx - tx, dy = sy - ty;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1) return { x: tx, y: ty };
+    const ux = dx / len, uy = dy / len;
+    const t = (hw * hh) / Math.sqrt((hh * ux) ** 2 + (hw * uy) ** 2);
+    return { x: tx + ux * (t + 1), y: ty + uy * (t + 1) };  // +1 : juste hors du contour
+  }
+
+  function renderGraph({nodes, links}) {
+    const container = document.getElementById('graph-container');
+    container.innerHTML = '';
+    const n = nodes.length;
+    const W = Math.max(container.clientWidth || 760, Math.min(n * 60, 2000));
+    const H = Math.max(container.clientHeight || 560, Math.min(n * 45, 1500));
+
+    if (!n) {
+      container.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted"><p class="p-4">Aucun participant ou aucune réponse enregistrée.</p></div>';
+      return;
+    }
+
+    const nodeMap = Object.fromEntries(nodes.map(nd => [nd.id, nd]));
+
+    const svg = d3.select('#graph-container').append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`);
+
+    // ── Marqueurs de flèches ──────────────────────────────────────────────
+    const defs = svg.append('defs');
+    [['dark', '#333'], ['red', '#dc3545']].forEach(([id, color]) => {
+      defs.append('marker')
+        .attr('id', `arrow-${id}`)
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 10).attr('refY', 0)   // pointe = bout du trait
+        .attr('markerWidth', 6).attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-5L10,0L0,5')
+        .attr('fill', color);
+    });
+
+    // ── Couleur et marqueur d'une arête ───────────────────────────────────
+    const edgeColor  = d => {
+      const tgt = nodeMap[d.target.id ?? d.target];
+      return (tgt && !tgt.exte && !tgt.inscrit) ? '#dc3545' : '#555';
+    };
+    const edgeMarker = d => {
+      const tgt = nodeMap[d.target.id ?? d.target];
+      return (tgt && !tgt.exte && !tgt.inscrit) ? 'url(#arrow-red)' : 'url(#arrow-dark)';
+    };
+
+    // ── Simulation (paramètres adaptatifs au nombre de nœuds) ──────────
+    const colW = d => nodeWidth(d) / 2 + 8;
+    // Répulsion faible + attraction gravitationnelle forte vers le centre
+    const chargeStr = n <= 15 ? -60 : n <= 40 ? -40 : -25;
+    const linkDist  = n <= 15 ? 80  : n <= 40 ? 60  : 45;
+    const gravity   = n <= 15 ? 0.08 : n <= 40 ? 0.12 : 0.18;
+
+    const sim = d3.forceSimulation(nodes)
+      .force('link',      d3.forceLink(links).id(d => d.id).distance(linkDist).strength(0.8))
+      .force('charge',    d3.forceManyBody().strength(chargeStr).distanceMax(250))
+      .force('x',         d3.forceX(W / 2).strength(gravity))
+      .force('y',         d3.forceY(H / 2).strength(gravity))
+      .force('collision', d3.forceCollide().radius(colW).strength(0.9));
+
+    // ── Arêtes ────────────────────────────────────────────────────────────
+    const link = svg.append('g').selectAll('line')
+      .data(links).join('line')
+      .attr('class', 'link')
+      .attr('stroke',       edgeColor)
+      .attr('stroke-width', d => Math.min(1 + d.weight, 4))
+      .attr('marker-end',   edgeMarker);
+
+    // ── Nœuds ─────────────────────────────────────────────────────────────
+    const nodeG = svg.append('g').selectAll('g')
+      .data(nodes).join('g')
+      .attr('class', 'node')
+      .call(d3.drag()
+        .on('start', (e, d) => { if (!e.active) sim.alphaTarget(.3).restart(); d.fx = d.x; d.fy = d.y; })
+        .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+        .on('end',   (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+    nodeG.append('rect')
+      .attr('x',      d => -nodeHW(d))
+      .attr('y',      -nodeHH)
+      .attr('width',  d => nodeWidth(d))
+      .attr('height', NODE_H)
+      .attr('rx',     NODE_H / 2)       // pill entièrement arrondie
+      .attr('fill',   d => d.color || 'white')
+      .attr('stroke', d => (!d.exte && !d.inscrit) ? '#dc3545' : 'black')
+      .attr('stroke-width',    2)
+      .attr('stroke-dasharray', d => d.exte ? '6,3' : null)
+      .append('title')
+        .text(d => `${d.display_name} — ${d.votes_received} souhait(s) reçu(s)\n${d.inscrit ? 'inscrit·e' : d.exte ? 'exté' : 'non inscrit·e'}`);
+
+    nodeG.append('text')
+      .text(d => d.display_name)
+      .attr('text-anchor', 'middle')
+      .attr('dy', '0.35em')
+      .attr('fill',        'black')
+      .attr('font-size',   FONT_SIZE + 'px')
+      .attr('font-family', 'system-ui, sans-serif')
+      .attr('font-weight', d => d.exte ? '700' : '400')
+      .style('pointer-events', 'none')
+      .style('user-select', 'none');
+
+    // ── Tick : repositionner arêtes (endpoints au bord du pill) ──────────
+    sim.on('tick', () => {
+      link
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => pillEdge(d.target.x, d.target.y, d.source.x, d.source.y,
+                                  nodeHW(d.target), nodeHH).x)
+        .attr('y2', d => pillEdge(d.target.x, d.target.y, d.source.x, d.source.y,
+                                  nodeHW(d.target), nodeHH).y);
+      nodeG.attr('transform', d => `translate(${
+        Math.max(nodeHW(d), Math.min(W - nodeHW(d), d.x))},${
+        Math.max(nodeHH,    Math.min(H - nodeHH,    d.y))})`);
+    });
+  }
+
+  function renderStats(nodes) {
+    const sorted = [...nodes]
+      .filter(n => n.votes_received > 0)
+      .sort((a, b) => b.votes_received - a.votes_received);
+    const list = document.getElementById('stats-list');
+    list.innerHTML = '';
+    sorted.forEach(n => {
+      const li  = document.createElement('li');
+      const tag = n.exte
+        ? `<span class="badge bg-light text-dark border ms-1 fw-bold" style="font-style:italic">exté</span>`
+        : !n.inscrit
+          ? `<span class="badge bg-light text-danger border ms-1">non inscrit·e</span>`
+          : '';
+      li.innerHTML = `<strong>${n.display_name}</strong>${tag} — ${n.votes_received} souhait${n.votes_received !== 1 ? 's' : ''} reçu${n.votes_received !== 1 ? 's' : ''}`;
+      list.appendChild(li);
+    });
+    document.getElementById('graph-stats').style.display = sorted.length ? 'block' : 'none';
+  }
+</script>
+{% endblock %}

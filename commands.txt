@@ -1,0 +1,9 @@
+./deploy.sh	                    Installation complète locale (apt, venv, Gunicorn, Nginx, Cloudflare)
+./deploy.sh --restart	        Redémarrer le service
+./deploy.sh --update	        Mettre à jour pip + dépendances + redémarrer
+./deploy.sh --tunnel        	(Re)configurer le tunnel Cloudflare
+./deploy.sh --dev           	Lancer Flask en mode dev local (charge .env si présent)
+./deploy.sh --remote	        Déploiement complet via SSH (rsync + install sur cible)
+./deploy.sh --remote --update	Sync fichiers + update sur la cible
+./deploy.sh --remote --restart	Restart du service distant
+./deploy.sh --remote --tunnel	Reconfig tunnel sur la cible

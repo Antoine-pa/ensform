@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Réponses – {{ form.title }} – ENSForm{% endblock %}
+
+{% block topbar_title %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.admin_dashboard') }}">Formulaires</a></li>
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.admin_form_builder', form_id=form.id) }}">{{ form.title }}</a></li>
+      <li class="breadcrumb-item active">Réponses</li>
+    </ol>
+  </nav>
+{% endblock %}
+
+{% block topbar_actions %}
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('admin.admin_form_export_csv', form_id=form.id) }}"
+       class="btn btn-sm btn-success">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
+    </a>
+    <a href="{{ url_for('admin.admin_form_builder', form_id=form.id) }}"
+       class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Éditeur
+    </a>
+  </div>
+{% endblock %}
+
+{% block content %}
+<div class="mt-3">
+  <div class="d-flex align-items-center mb-3 gap-3">
+    <h5 class="mb-0 fw-semibold">{{ responses|length }} réponse{{ 's' if responses|length != 1 }}</h5>
+  </div>
+
+  {% if not responses %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-inbox display-3"></i>
+      <p class="mt-2">Aucune réponse pour l'instant.</p>
+    </div>
+  {% else %}
+    <!-- Vue détaillée des réponses -->
+    {% for resp in responses %}
+      <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center bg-light">
+          <div>
+            <strong>#{{ resp.id }}</strong>
+            {% if resp.respondent_name %}
+              &nbsp;—&nbsp;<span class="text-primary fw-semibold">{{ resp.respondent_name }}</span>
+            {% endif %}
+          </div>
+          <div class="d-flex align-items-center gap-3">
+            <small class="text-muted">
+              <i class="bi bi-calendar3 me-1"></i>
+              {{ resp.submitted_at.strftime('%d/%m/%Y à %H:%M') }}
+            </small>
+            <form method="post"
+                  action="{{ url_for('admin.admin_response_delete', form_id=form.id, response_id=resp.id) }}"
+                  onsubmit="return confirm('Supprimer cette réponse ?')">
+              <button class="btn btn-sm btn-outline-danger" type="submit">
+                <i class="bi bi-trash3"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+        <div class="card-body py-2">
+          <dl class="row mb-0">
+            {% set answers_by_qid = {} %}
+            {% for a in resp.answers %}
+              {% if answers_by_qid.update({a.question_id: a.value}) %}{% endif %}
+            {% endfor %}
+            {% for q in form.questions %}
+              <dt class="col-sm-4 text-muted fw-normal small">{{ q.label }}</dt>
+              <dd class="col-sm-8 mb-1">
+                {% set val = decode_value(answers_by_qid.get(q.id, '')) %}
+                {% if val %}
+                  <span class="fw-semibold">{{ val }}</span>
+                {% else %}
+                  <span class="text-muted fst-italic">—</span>
+                {% endif %}
+              </dd>
+            {% endfor %}
+          </dl>
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}
