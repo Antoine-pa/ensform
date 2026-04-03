@@ -5,6 +5,7 @@
 # MODES LOCAUX (sur cette machine) :
 #   ./deploy.sh                 Installation complète (Gunicorn+Nginx+Tunnel)
 #   ./deploy.sh --restart       Redémarrer le service
+#   ./deploy.sh --down          Arrêter le service (systemd)
 #   ./deploy.sh --update        Mettre à jour les dépendances + redémarrer
 #   ./deploy.sh --tunnel        (Re)configurer le tunnel Cloudflare
 #   ./deploy.sh --dev           Lancer le serveur de développement Flask
@@ -13,6 +14,7 @@
 #   ./deploy.sh --remote                 Déploiement complet sur la cible
 #   ./deploy.sh --remote --update        Sync fichiers + redémarrer
 #   ./deploy.sh --remote --restart       Redémarrer le service distant
+#   ./deploy.sh --remote --down          Arrêter le service distant
 #   ./deploy.sh --remote --tunnel        Reconfigurer tunnel distant
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -40,11 +42,12 @@ for arg in "$@"; do
   case "$arg" in
     --remote)   REMOTE=true ;;
     --restart)  MODE="restart" ;;
+    --down)     MODE="down" ;;
     --update)   MODE="update" ;;
     --tunnel)   MODE="tunnel" ;;
     --dev)      MODE="dev" ;;
     --help|-h)
-      head -17 "$0" | tail -16
+      head -19 "$0" | tail -18
       exit 0
       ;;
     *) err "Option inconnue : $arg. Utilisez --help." ;;
@@ -112,6 +115,10 @@ EOF
       ssh "$SSH_TARGET" "sudo systemctl restart $SERVICE_NAME"
       success "Service distant redémarré."
       ;;
+    down)
+      ssh "$SSH_TARGET" "sudo systemctl stop $SERVICE_NAME"
+      success "Service distant $SERVICE_NAME arrêté."
+      ;;
     update)
       do_sync
       ssh "$SSH_TARGET" "cd $REMOTE_DIR && bash deploy.sh --update"
@@ -169,6 +176,13 @@ fi
 if [[ "$MODE" == "restart" ]]; then
   sudo systemctl restart "$SERVICE_NAME"
   success "Service $SERVICE_NAME redémarré."
+  exit 0
+fi
+
+# ── --down : arrêt du service ────────────────────────────────────────────────
+if [[ "$MODE" == "down" ]]; then
+  sudo systemctl stop "$SERVICE_NAME"
+  success "Service $SERVICE_NAME arrêté."
   exit 0
 fi
 
@@ -234,16 +248,24 @@ setup_tunnel() {
   TUNNEL_UUID="$(cloudflared tunnel list 2>/dev/null | grep "$TUNNEL_NAME" | awk '{print $1}')"
   info "UUID : $TUNNEL_UUID"
 
-  CF_CONFIG_DIR="$HOME/.cloudflared"
-  mkdir -p "$CF_CONFIG_DIR"
-  cat > "$CF_CONFIG_DIR/config.yml" <<EOF
+  CF_USER_DIR="$HOME/.cloudflared"
+  CF_SYSTEM_DIR="/etc/cloudflared"
+  mkdir -p "$CF_USER_DIR"
+
+  cat > "$CF_USER_DIR/config.yml" <<EOF
 tunnel: $TUNNEL_UUID
-credentials-file: $CF_CONFIG_DIR/${TUNNEL_UUID}.json
+credentials-file: $CF_SYSTEM_DIR/${TUNNEL_UUID}.json
 
 ingress:
   - service: http://localhost:80
 EOF
-  success "config.yml cloudflared écrit."
+
+  sudo mkdir -p "$CF_SYSTEM_DIR"
+  sudo cp "$CF_USER_DIR/config.yml" "$CF_SYSTEM_DIR/config.yml"
+  if [[ -f "$CF_USER_DIR/${TUNNEL_UUID}.json" ]]; then
+    sudo cp "$CF_USER_DIR/${TUNNEL_UUID}.json" "$CF_SYSTEM_DIR/${TUNNEL_UUID}.json"
+  fi
+  success "config.yml cloudflared écrit ($CF_SYSTEM_DIR)."
 
   if [[ ! -f /etc/systemd/system/cloudflared.service ]]; then
     sudo cloudflared service install
