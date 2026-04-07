@@ -82,7 +82,7 @@ def admin_form_edit(form_id):
         new_title = request.form.get("title", form.title).strip() or form.title
         form.title          = new_title
         form.description    = request.form.get("description", "")
-        form.slug           = make_slug(new_title)
+        form.slug           = make_slug(new_title, exclude_form_id=form.id)
         form.allow_multiple = "allow_multiple" in request.form
         form.updated_at     = datetime.utcnow()
         db.session.commit()

@@ -153,8 +153,18 @@ def send_share_notification(to_email: str, form_title: str, role: str, sharer_em
 
 # ── Slug / public_id ─────────────────────────────────────────────────────────
 
-def make_slug(title):
-    return slugify(title, allow_unicode=True) or "formulaire"
+def make_slug(title, exclude_form_id=None):
+    base = slugify(title, allow_unicode=True) or "formulaire"
+    candidate = base
+    suffix = 2
+    while True:
+        query = Form.query.filter_by(slug=candidate)
+        if exclude_form_id is not None:
+            query = query.filter(Form.id != exclude_form_id)
+        if not query.first():
+            return candidate
+        candidate = f"{base}-{suffix}"
+        suffix += 1
 
 
 def gen_public_id(length=8):

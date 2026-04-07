@@ -108,6 +108,39 @@ with app.app_context():
             except Exception:
                 pass
 
+        # SQLite: remove UNIQUE constraint baked into forms.slug column definition
+        try:
+            row = _conn.execute(db.text(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='forms'"
+            )).fetchone()
+            if row and "UNIQUE" in (row[0] or ""):
+                _conn.execute(db.text("""
+                    CREATE TABLE IF NOT EXISTS _forms_new (
+                        id             INTEGER PRIMARY KEY,
+                        title          VARCHAR(200) NOT NULL,
+                        description    TEXT DEFAULT '',
+                        slug           VARCHAR(200) NOT NULL,
+                        public_id      VARCHAR(10) UNIQUE,
+                        created_at     DATETIME,
+                        updated_at     DATETIME,
+                        is_published   BOOLEAN DEFAULT 0,
+                        allow_multiple BOOLEAN DEFAULT 1,
+                        owner_id       INTEGER REFERENCES admin_users(id)
+                    )
+                """))
+                _conn.execute(db.text("""
+                    INSERT OR IGNORE INTO _forms_new
+                    SELECT id, title, description, slug, public_id,
+                           created_at, updated_at, is_published,
+                           allow_multiple, owner_id
+                    FROM forms
+                """))
+                _conn.execute(db.text("DROP TABLE forms"))
+                _conn.execute(db.text("ALTER TABLE _forms_new RENAME TO forms"))
+                _conn.commit()
+        except Exception:
+            pass
+
     _forms_without_pid = Form.query.filter(
         (Form.public_id == None) | (Form.public_id == "")
     ).all()

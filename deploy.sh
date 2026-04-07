@@ -252,18 +252,32 @@ setup_tunnel() {
   CF_SYSTEM_DIR="/etc/cloudflared"
   mkdir -p "$CF_USER_DIR"
 
+  CRED_SRC="$CF_USER_DIR/${TUNNEL_UUID}.json"
+  CRED_DST="$CF_SYSTEM_DIR/${TUNNEL_UUID}.json"
+
   cat > "$CF_USER_DIR/config.yml" <<EOF
 tunnel: $TUNNEL_UUID
-credentials-file: $CF_SYSTEM_DIR/${TUNNEL_UUID}.json
+credentials-file: $CRED_DST
 
 ingress:
   - service: http://localhost:80
+    originRequest:
+      noTLSVerify: true
+  - service: http_status:404
 EOF
 
   sudo mkdir -p "$CF_SYSTEM_DIR"
   sudo cp "$CF_USER_DIR/config.yml" "$CF_SYSTEM_DIR/config.yml"
-  if [[ -f "$CF_USER_DIR/${TUNNEL_UUID}.json" ]]; then
-    sudo cp "$CF_USER_DIR/${TUNNEL_UUID}.json" "$CF_SYSTEM_DIR/${TUNNEL_UUID}.json"
+
+  if [[ -f "$CRED_SRC" ]]; then
+    sudo cp "$CRED_SRC" "$CRED_DST"
+  elif [[ ! -f "$CRED_DST" ]]; then
+    err "Fichier credentials introuvable : $CRED_SRC
+    Le tunnel '$TUNNEL_NAME' existe mais ses credentials sont absentes.
+    Supprimez et recréez le tunnel :
+      cloudflared tunnel delete $TUNNEL_NAME
+      cloudflared tunnel create $TUNNEL_NAME
+    Puis relancez : ./deploy.sh --tunnel"
   fi
   success "config.yml cloudflared écrit ($CF_SYSTEM_DIR)."
 
