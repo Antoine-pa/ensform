@@ -364,21 +364,33 @@ class GroupeField {
 // ════════════════════════════════════════════════════════════════════════════
 
 function initPublicForm() {
+  try {
+    // ── Menus déroulants avec recherche (type select) ──────────────────────
+    document.querySelectorAll('[data-type="searchable-select"]').forEach(function(wrap) {
+      var options     = JSON.parse(wrap.dataset.options || '[]');
+      var name        = wrap.dataset.name        || '';
+      var initial     = wrap.dataset.initial     || '';
+      var placeholder = wrap.dataset.placeholder || 'Rechercher…';
+      var hasError    = wrap.dataset.error === 'true';
+      new SearchableSelect(wrap, options, name, initial, placeholder, hasError);
+    });
 
-  // ── Menus déroulants avec recherche (type select) ────────────────────────
-  document.querySelectorAll('[data-type="searchable-select"]').forEach(wrap => {
-    const options     = JSON.parse(wrap.dataset.options || '[]');
-    const name        = wrap.dataset.name        || '';
-    const initial     = wrap.dataset.initial     || '';
-    const placeholder = wrap.dataset.placeholder || 'Rechercher…';
-    const hasError    = wrap.dataset.error === 'true';
-    new SearchableSelect(wrap, options, name, initial, placeholder, hasError);
-  });
-
-  // ── Champs Groupe ────────────────────────────────────────────────────────
-  document.querySelectorAll('.groupe-field').forEach(container => {
-    new GroupeField(container);
-  });
+    // ── Champs Groupe ──────────────────────────────────────────────────────
+    document.querySelectorAll('.groupe-field').forEach(function(container) {
+      try {
+        new GroupeField(container);
+      } catch (err) {
+        container.innerHTML =
+          '<div class="alert alert-warning py-2">' +
+          '<strong>Ce champ ne s\u2019est pas chargé.</strong> ' +
+          'Essayez de vider le cache (Ctrl+Maj+R) ou d\u2019utiliser un autre navigateur.' +
+          '</div>';
+        console.error('GroupeField init error:', err);
+      }
+    });
+  } catch (err) {
+    console.error('initPublicForm error:', err);
+  }
 }
 
 
@@ -387,7 +399,7 @@ function initPublicForm() {
 // ════════════════════════════════════════════════════════════════════════════
 
 function esc(str) {
-  return String(str ?? '')
+  return String(str || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

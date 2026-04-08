@@ -3,10 +3,12 @@ ENSForm – Point d'entrée de l'application Flask.
 Configure l'app, enregistre les blueprints, exécute les migrations au démarrage.
 """
 
+import hashlib
 import os
+import subprocess
 from datetime import timedelta
 
-from flask import Flask, render_template
+from flask import Flask, jsonify, render_template, request as flask_request
 
 from extensions import db, login_manager
 from helpers import _csrf_token, gen_public_id
@@ -55,6 +57,19 @@ app.jinja_env.globals["csrf_token"] = _csrf_token
 app.jinja_env.globals["qtype_icon"] = qtype_icon
 
 
+def _asset_hash(filename):
+    """Short content hash for cache busting static assets."""
+    path = os.path.join(_BASE_DIR, "static", filename)
+    try:
+        with open(path, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()[:8]
+    except FileNotFoundError:
+        return "0"
+
+
+app.jinja_env.globals["asset_hash"] = _asset_hash
+
+
 # ── Enregistrement des blueprints ─────────────────────────────────────────────
 
 from routes.auth import bp as auth_bp
@@ -73,6 +88,38 @@ app.register_blueprint(grouping_bp)
 
 # Passer la config AUTH_ENABLED au blueprint admin pour le dashboard
 admin_bp.config_auth_enabled = app.config.get("AUTH_ENABLED", True)
+
+
+# ── Endpoint de déploiement à distance ────────────────────────────────────────
+
+@app.route("/api/deploy", methods=["POST"])
+def remote_deploy():
+    token = os.environ.get("DEPLOY_TOKEN", "")
+    provided = (flask_request.headers.get("Authorization") or "").replace("Bearer ", "")
+    if not token or not provided or token != provided:
+        return jsonify({"error": "unauthorized"}), 401
+    try:
+        pull = subprocess.run(
+            ["git", "pull", "--ff-only"],
+            cwd=_BASE_DIR, capture_output=True, text=True, timeout=30,
+        )
+        pip = subprocess.run(
+            [os.path.join(_BASE_DIR, "venv", "bin", "pip"), "install", "-r",
+             os.path.join(_BASE_DIR, "requirements.txt"), "-q"],
+            cwd=_BASE_DIR, capture_output=True, text=True, timeout=60,
+        )
+        restart = subprocess.run(
+            ["sudo", "systemctl", "restart", "ensform"],
+            capture_output=True, text=True, timeout=15,
+        )
+        return jsonify({
+            "ok": True,
+            "git": pull.stdout.strip() or pull.stderr.strip(),
+            "pip": "done",
+            "restart": restart.returncode == 0,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ── Route racine ──────────────────────────────────────────────────────────────

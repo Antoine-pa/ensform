@@ -237,7 +237,7 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-<script src="{{ url_for('static', filename='js/form_builder.js') }}"></script>
+<script src="{{ url_for('static', filename='js/form_builder.js') }}?v={{ asset_hash('js/form_builder.js') }}"></script>
 <script>
   const FORM_ID   = {{ form.id }};
   const QTYPES    = {{ qtypes | tojson }};

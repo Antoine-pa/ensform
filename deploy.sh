@@ -367,12 +367,14 @@ if $WRITE_ENV; then
   [[ -f "$ENV_FILE" ]] && EXISTING_KEY="$(grep '^SECRET_KEY=' "$ENV_FILE" | cut -d= -f2- || true)"
   SECRET_KEY="${EXISTING_KEY:-$(python3 -c 'import secrets;print(secrets.token_hex(32))')}"
 
-  # Lire ADMIN_ID et ADMIN_PASSWORD existants
-  ADMIN_ID_VAL="" ; ADMIN_PW_VAL=""
+  # Lire ADMIN_ID, ADMIN_PASSWORD et DEPLOY_TOKEN existants
+  ADMIN_ID_VAL="" ; ADMIN_PW_VAL="" ; DEPLOY_TOKEN_VAL=""
   if [[ -f "$ENV_FILE" ]]; then
     ADMIN_ID_VAL="$(grep '^ADMIN_ID=' "$ENV_FILE" | cut -d= -f2- || true)"
     ADMIN_PW_VAL="$(grep '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2- || true)"
+    DEPLOY_TOKEN_VAL="$(grep '^DEPLOY_TOKEN=' "$ENV_FILE" | cut -d= -f2- || true)"
   fi
+  DEPLOY_TOKEN_VAL="${DEPLOY_TOKEN_VAL:-$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))')}"
 
   cat > "$ENV_FILE" <<EOF
 # ── ENSForm production ──────────────────────────────────────
@@ -387,6 +389,9 @@ MAIL_USERNAME=$BREVO_USER
 MAIL_PASSWORD=$BREVO_PASS
 MAIL_FROM=$MAIL_FROM_VAL
 MAIL_USE_TLS=true
+
+# Déploiement à distance
+DEPLOY_TOKEN=$DEPLOY_TOKEN_VAL
 EOF
 
   if [[ -n "$ADMIN_ID_VAL" ]]; then

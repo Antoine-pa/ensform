@@ -83,17 +83,17 @@ function renderModalSections(qtype, q) {
     renderOptionsEditor(q ? q.options : []);
   }
   if (isNumber && q) {
-    setVal('cfg-min',  q.config.min  ?? '');
-    setVal('cfg-max',  q.config.max  ?? '');
-    setVal('cfg-step', q.config.step ?? '');
+    setVal('cfg-min',  q.config.min != null ? q.config.min : '');
+    setVal('cfg-max',  q.config.max != null ? q.config.max : '');
+    setVal('cfg-step', q.config.step != null ? q.config.step : '');
   }
   if (isText && q) {
-    setVal('cfg-placeholder', q.config.placeholder ?? '');
+    setVal('cfg-placeholder', q.config.placeholder || '');
   }
   if (isGroupe) {
-    setVal('cfg-max-wishes', q ? (q.config.max_wishes ?? 3) : 3);
-    const allowExteEl = document.getElementById('cfg-allow-exte');
-    if (allowExteEl) allowExteEl.checked = q ? (q.config.allow_exte ?? true) : true;
+    setVal('cfg-max-wishes', q ? (q.config.max_wishes != null ? q.config.max_wishes : 3) : 3);
+    var allowExteEl = document.getElementById('cfg-allow-exte');
+    if (allowExteEl) allowExteEl.checked = q ? (q.config.allow_exte != null ? q.config.allow_exte : true) : true;
     // Afficher le lien vers la page groupes si GROUPE_ADMIN_URL est défini
     const linkDiv = document.getElementById('groupe-participants-link');
     if (linkDiv && typeof GROUPE_ADMIN_URL !== 'undefined') {
@@ -175,8 +175,10 @@ function buildConfig(qtype) {
     return { placeholder: document.getElementById('cfg-placeholder').value };
   }
   if (qtype === 'groupe') {
-    const mw = parseInt(document.getElementById('cfg-max-wishes')?.value || '3', 10);
-    const allowExte = document.getElementById('cfg-allow-exte')?.checked ?? true;
+    var mwEl = document.getElementById('cfg-max-wishes');
+    var mw = parseInt(mwEl ? mwEl.value : '3', 10);
+    var aeEl = document.getElementById('cfg-allow-exte');
+    var allowExte = aeEl ? aeEl.checked : true;
     return { max_wishes: isNaN(mw) ? 3 : Math.max(1, mw), allow_exte: allowExte };
   }
   return {};
@@ -188,7 +190,8 @@ async function deleteQuestion(qid) {
   if (!confirm('Supprimer cette question ?')) return;
   const ok = await api('DELETE', `questions/${qid}`);
   if (ok === null) return;
-  document.getElementById(`q-card-${qid}`)?.remove();
+  var cardEl = document.getElementById('q-card-' + qid);
+  if (cardEl) cardEl.remove();
   updateEmpty();
 }
 
@@ -263,7 +266,7 @@ function show(id, visible) {
 
 function setVal(id, val) {
   const el = document.getElementById(id);
-  if (el) el.value = val ?? '';
+  if (el) el.value = val != null ? val : '';
 }
 
 function parseFloatOrNull(s) {
@@ -272,7 +275,7 @@ function parseFloatOrNull(s) {
 }
 
 function escHtml(str) {
-  return String(str ?? '')
+  return String(str || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
