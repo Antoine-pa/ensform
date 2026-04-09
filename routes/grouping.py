@@ -2,6 +2,7 @@
 
 import csv
 import io
+import json
 from datetime import datetime
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
@@ -12,7 +13,8 @@ from helpers import (
     groupe_node_colors, groupe_participants, groupe_respondents, login_required,
 )
 from models import (
-    GroupDepartment, GroupParticipant, GroupingAssignment, GroupingSession, GroupingSlot,
+    Answer, GroupDepartment, GroupParticipant, GroupingAssignment,
+    GroupingSession, GroupingSlot, Question, Response,
 )
 from groupe.clustering import assign_clusters_to_slots, build_affinity_clusters, build_people_list
 
@@ -338,25 +340,60 @@ def api_save_state(form_id, sid):
 
 # ── Export CSV ────────────────────────────────────────────────────────────────
 
+def _phone_map(form_id: int) -> dict[str, str]:
+    """Construit {nom_personne: téléphone} à partir des réponses groupe."""
+    groupe_q_ids = {
+        q.id for q in Question.query.filter_by(form_id=form_id, qtype="groupe").all()
+    }
+    if not groupe_q_ids:
+        return {}
+    phones: dict[str, str] = {}
+    for resp in Response.query.filter_by(form_id=form_id).all():
+        for ans in resp.answers:
+            if ans.question_id not in groupe_q_ids:
+                continue
+            try:
+                data = json.loads(ans.value or "{}")
+                phone = data.get("phone", "").strip()
+                if not phone:
+                    continue
+                if data.get("identity_type") == "list":
+                    name = data.get("identity_name", "").strip()
+                    if name:
+                        phones[name] = phone
+                elif data.get("identity_type") == "exte":
+                    name = data.get("identity_name", "").strip()
+                    if name:
+                        phones[f"Exté : {name}"] = phone
+            except Exception:
+                pass
+    return phones
+
+
 @bp.route("/admin/forms/<int:form_id>/grouping/<int:sid>/export.csv")
 @login_required
 def export_csv(form_id, sid):
     form    = get_form_with_access(form_id, "reader")
     session = GroupingSession.query.filter_by(id=sid, form_id=form_id).first_or_404()
     state   = _session_state(session, form)
+    phones  = _phone_map(form_id)
 
-    output = io.StringIO()
-    writer = csv.writer(output, delimiter=";")
-    writer.writerow(["Groupe", "Nom", "Type", "Département", "Cluster"])
-
+    rows = []
     for slot in state["slots"]:
         for m in slot["members"]:
             display = m["name"].removeprefix("Exté : ") if m["name"].startswith("Exté : ") else m["name"]
-            writer.writerow([slot["name"], display, m["type"], m["department"] or "", m["cluster_id"] or ""])
+            phone = phones.get(m["name"], "")
+            if m["type"] == "non_inscrit":
+                phone = ""
+            rows.append((slot["name"], display, m["type"], m["department"] or "", phone))
 
-    for m in state["unassigned"]:
-        display = m["name"].removeprefix("Exté : ") if m["name"].startswith("Exté : ") else m["name"]
-        writer.writerow(["Non affecté", display, m["type"], m["department"] or "", m["cluster_id"] or ""])
+    rows.sort(key=lambda r: r[0])
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["Groupe", "Nom", "Type", "Département", "Téléphone"])
+    for row in rows:
+        writer.writerow(row)
 
     filename = f"groupes_{form.slug}_{session.name.replace(' ', '_')}.csv"
     return send_file(
