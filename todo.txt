@@ -1,0 +1,7 @@
+tenir un registre des connexions à ne pas prendre en compte (qu'on aurait delete à la main), des gens qui ne viennent finanelement pas et qu'on veut pas afficher, pouvoir forcer le placement d'une personne dans un appart, de pouvoir interdire ou forcer des connexions
+les gens solo inscrits finissent dans les non affectés au lieu des non placés
+zoom sur le graphe dynamique
+si on met un non affecté dans les non inscrits, il disparait
+revoir l'export csv pour qu'il exporte les numéros de tel également
+ajouter une recherche dans les réponses
+revoir le bug de quand on change de page au moment de replir le numéro de tel, il change le nom prénom
